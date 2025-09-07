@@ -160,12 +160,12 @@ struct span *alloc_span(usz gross) {
     /* Place one initial all-spanning free block immediately after the span
      * header.
      */
-    struct block *bp = first_block(sp);
-    bp->size = gross;
-    bp->next = 0;
-    bp->owner = sp;
-    bp->free = 1;
-    bp->magic = MAGIC_BABY;
+    sp->free_list = first_block(sp);
+    sp->free_list->size = gross;
+    sp->free_list->next = 0;
+    sp->free_list->owner = sp;
+    sp->free_list->free = 1;
+    sp->free_list->magic = MAGIC_BABY;
 
     return sp;
 }
