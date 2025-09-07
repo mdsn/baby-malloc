@@ -67,48 +67,45 @@ enum {
     MINIMUM_ALLOCATION = 64 * 1024
 };
 
-/* Poor man's alignas. A union's alignment is the maximum alignment of any
- * member. A union's size is the maximum of the sizes of its members, rounded
- * up to that alignment. The dummy _char[ALIGNMENT] forces the whole union to
- * be ALIGNMENT-aligned, and sizeof(union span) to be a multiple of ALIGNMENT.
- *
- * This ensures both types of headers respect alignment requirements. The first
- * block header after a span header is automatically aligned, and likewise the
- * memory after the block header is automatically aligned. In other words, each
- * header carries its own padding.
+/* If a is a power of 2, round n up to the next multiple of a.
  */
+#define ALIGN_UP(n,a)   ( ((n) + (a) - 1) & ~((a) - 1) )
 
-typedef union span {
-    struct {
-        usz size;                   /* size including header */
-        usz avail;                  /* available bytes */
-        union span *next;
-        union block *free_list;
-                                    /* XXX: count of blocks in use? */
-    } _span;
-    unsigned char _align[ALIGNMENT];
-} span;
+struct span {
+    usz size;                   /* size including header */
+    usz avail;                  /* available bytes */
+    struct span *next;
+    struct block *free_list;
+                                /* XXX: count of blocks in use? */
+};
 
-STATIC_ASSERT(sizeof(union span) % ALIGNMENT == 0, span_hdr_aligned);
+struct block {
+    usz size;                   /* size including header */
+    struct block *next;         /* next free block */
+    struct span *owner;         /* span that holds ths block */
+    b32 free;                   /* is this chunk free */
+    i32 magic;                  /* 0xbebebebe */
+};
 
-typedef union block {
-    struct {
-        usz size;                   /* size including header */
-        union block *next;          /* next free block */
-        union span *owner;          /* span that holds ths block */
-        b32 free;                   /* is this chunk free */
-        i32 magic;                  /* 0xbebebebe */
-    } _block;
-    unsigned char _align[ALIGNMENT];
-} block;
 
-STATIC_ASSERT(sizeof(union block) % ALIGNMENT == 0, block_hdr_aligned);
+/* Precomputed sizes of the headers and their padding, to be able to hop back
+ * to the header from the pointer given by the caller to free().
+ */
+enum {
+    SPAN_HDR_PADSZ = ALIGN_UP(sizeof(struct span), ALIGNMENT),
+    BLOCK_HDR_PADSZ = ALIGN_UP(sizeof(struct block), ALIGNMENT),
+};
+
+/* Ensure these padded sizes are indeed multiples of ALIGNMENT.
+ */
+STATIC_ASSERT((SPAN_HDR_PADSZ % ALIGNMENT) == 0, span_header_size);
+STATIC_ASSERT((BLOCK_HDR_PADSZ % ALIGNMENT) == 0, block_header_size);
 
 /* The initial state, when no pages have been requested from the OS, is that
  * the global base pointer is NULL. When the first request comes, the initial
  * span is tracked by this pointer.
  */
-span *base = 0;
+struct span *base = 0;
 
 /* The page size is requested and stored here upon the first call to malloc().
  */
@@ -136,7 +133,9 @@ void *align_ptr(void *p) {
  * MINIMUM_ALLOCATION is requested.
  */
 
-span *alloc_span(usz size) {
+struct span *alloc_span(usz size) {
+    (void)size;
+    return 0;
 }
 
 /* Place a block in the free space of the given span, big enough to serve the
@@ -145,20 +144,38 @@ span *alloc_span(usz size) {
  * any, and updating the span values.
  */
 
-block *alloc_block(usz size, span *s) {
+void alloc_block(usz size, struct block *bp) {
+    (void)size;
+    (void)bp;
 }
 
-/* Find a span with a free block big enough to serve a request. The given size
- * is the gross size--enough to hold the header and the memory.
+/* Traverse the free list of each span to find a free block big enough to serve
+ * a request. The given size is the gross size--enough to hold the header and
+ * the memory.
  */
-span *find_span(usz gross) { }
+struct block *find_block(usz gross) {
+    struct span *sp = base;
+    while (sp) {
+        struct block *bp = sp->free_list;
+        while (bp) {
+            if (bp->size >= gross)
+                return bp;
+            bp = bp->next;
+        }
+        sp = sp->next;
+    }
+    return 0;
+}
 
 /* Calculate the gross size needed to serve a user request for `size` bytes.
  * The gross size includes the block header, the requested memory, and padding
  * after the memory to fill to the next ALIGNMENT boundary (so the next block
  * header will also be aligned).
  */
-usz gross_size(usz size) {}
+usz gross_size(usz size) {
+    (void)size;
+    return 0;
+}
 
 /* Serve a request for memory for the caller. Search for an already mmap'd span
  * with enough available space for the new block: its header, and the number of
@@ -180,31 +197,37 @@ void *malloc(usz size) {
      */
     usz gross = gross_size(size);
 
-    /* Try to find a span with enough space to serve the request.
+    /* Try to find a block with enough space to serve the request.
      */
-    span *s = find_span(gross);
+    struct block *bp = find_block(gross);
 
     /* If no existing span has enough space to serve the request, or if there
      * is no existing span because this is the first call, a new span needs to
      * be requested from the OS.
      */
-    if (s == 0) {
-        s = alloc_span(gross);
-        if (s == 0)     /* mmap(2) failed, not my fault */
+    if (bp == 0) {
+        struct span *sp = alloc_span(gross);
+        if (sp == 0)     /* mmap(2) failed, not my fault */
             return 0;
+
+        /* The fresh span has a single free block the size of the entire span.
+         */
+        bp = sp->free_list;
     }
 
-    /* The span at s can serve the request. Place the block header, align
-     * the pointer to the memory after it and return it.
+    /* Allocate the block at bp to the caller. Split the free space if
+     * possible, splice the block from the free list, and update block and span
+     * metadata.
      */
-    block *b = alloc_block(size, s);
+    alloc_block(size, bp);
+
 
     /* The caller's memory comes after the block header, which is padded to
      * ALIGNMENT bytes to ensure the memory itself is aligned. The memory is
      * extended to a multiple of ALIGNMENT too, to ensure any subsequent
      * block header is automatically aligned.
      */
-    return b + 1;
+    return bp + 1;
 }
 
 int main(void) {
