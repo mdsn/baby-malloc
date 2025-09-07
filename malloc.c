@@ -71,6 +71,14 @@ enum {
  */
 #define ALIGN_UP(n,a)   ( ((n) + (a) - 1) & ~((a) - 1) )
 
+/* Align a pointer to the next multiple of 16 address.
+ */
+void *align_ptr(void *p) {
+    uptr x = (uptr)p;
+    uptr y = (x + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1);
+    return (void *)y;
+}
+
 struct span {
     usz size;                   /* size including header */
     usz avail;                  /* available bytes */
@@ -110,20 +118,6 @@ struct span *base = 0;
 /* The page size is requested and stored here upon the first call to malloc().
  */
 int pagesize = 0;
-
-/* Align n bytes up to the next multiple of 16.
- */
-usz align(usz n) {
-    return (n + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
-}
-
-/* Align a pointer to the next multiple of 16 address.
- */
-void *align_ptr(void *p) {
-    uptr x = (uptr)p;
-    uptr y = (x + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1);
-    return (void *)y;
-}
 
 /* mmap obtains memory in multiples of the page size, padding up the requested
  * size if necessary. Therefore it's in our best interest to round up the
@@ -168,13 +162,12 @@ struct block *find_block(usz gross) {
 }
 
 /* Calculate the gross size needed to serve a user request for `size` bytes.
- * The gross size includes the block header, the requested memory, and padding
- * after the memory to fill to the next ALIGNMENT boundary (so the next block
- * header will also be aligned).
+ * The gross size includes the block header and its padding, the requested
+ * memory, and padding after the memory to fill to the next ALIGNMENT boundary
+ * (so the next block header will also be aligned).
  */
 usz gross_size(usz size) {
-    (void)size;
-    return 0;
+    return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT);
 }
 
 /* Serve a request for memory for the caller. Search for an already mmap'd span
@@ -220,7 +213,6 @@ void *malloc(usz size) {
      * metadata.
      */
     alloc_block(size, bp);
-
 
     /* The caller's memory comes after the block header, which is padded to
      * ALIGNMENT bytes to ensure the memory itself is aligned. The memory is
