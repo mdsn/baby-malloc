@@ -62,9 +62,13 @@ typedef uintptr_t uptr;
  */
 #define STATIC_ASSERT(cond, name) typedef char static_assert_##name[(cond)?1:-1]
 
+/* Get your bearings in the debugger.
+ */
+#define MAGIC_BABY  0xbebebebe;
+
 enum {
     ALIGNMENT = 16,
-    MINIMUM_ALLOCATION = 64 * 1024
+    MINIMUM_ALLOCATION = 64 * 1024,
 };
 
 /* If a is a power of 2, round n up to the next multiple of a.
@@ -81,7 +85,6 @@ void *align_ptr(void *p) {
 
 struct span {
     usz size;                   /* size including header */
-    usz avail;                  /* available bytes */
     struct span *next;
     struct block *free_list;
                                 /* XXX: count of blocks in use? */
@@ -92,9 +95,9 @@ struct block {
     struct block *next;         /* next free block */
     struct span *owner;         /* span that holds ths block */
     b32 free;                   /* is this chunk free */
-    i32 magic;                  /* 0xbebebebe */
+                                /* XXX use size lowest bits for this */
+    u32 magic;                  /* 0xbebebebe */
 };
-
 
 /* Precomputed sizes of the headers and their padding, to be able to hop back
  * to the header from the pointer given by the caller to free().
@@ -108,6 +111,13 @@ enum {
  */
 STATIC_ASSERT((SPAN_HDR_PADSZ % ALIGNMENT) == 0, span_header_size);
 STATIC_ASSERT((BLOCK_HDR_PADSZ % ALIGNMENT) == 0, block_header_size);
+
+/* Get a pointer to the first block header after a span header, considering
+ * padding.
+ */
+struct block *first_block(struct span *sp) {
+    return (struct block *)((char *)sp + SPAN_HDR_PADSZ);
+}
 
 /* The initial state, when no pages have been requested from the OS, is that
  * the global base pointer is NULL. When the first request comes, the initial
@@ -127,9 +137,37 @@ int pagesize = 0;
  * MINIMUM_ALLOCATION is requested.
  */
 
-struct span *alloc_span(usz size) {
-    (void)size;
-    return 0;
+usz maxusz(usz a, usz b) {
+    return a > b ? a : b;
+}
+
+struct span *alloc_span(usz gross) {
+    usz req = maxusz(gross, MINIMUM_ALLOCATION);
+    req = ALIGN_UP(req, pagesize);
+
+    /* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
+     */
+    struct span *sp = mmap(0, req, PROT_WRITE | PROT_READ,
+        MAP_ANON | MAP_PRIVATE, -1, 0);
+
+    if (sp == MAP_FAILED)
+        return 0;
+
+    sp->size = req;
+    sp->next = base;    /* Prepend the span to the list. */
+    base = sp;
+
+    /* Place one initial all-spanning free block immediately after the span
+     * header.
+     */
+    struct block *bp = first_block(sp);
+    bp->size = gross;
+    bp->next = 0;
+    bp->owner = sp;
+    bp->free = 1;
+    bp->magic = MAGIC_BABY;
+
+    return sp;
 }
 
 /* Place a block in the free space of the given span, big enough to serve the
