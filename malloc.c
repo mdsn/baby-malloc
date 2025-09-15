@@ -107,10 +107,14 @@ enum {
     BLOCK_HDR_PADSZ = ALIGN_UP(sizeof(struct block), ALIGNMENT),
 };
 
-/* Ensure these padded sizes are indeed multiples of ALIGNMENT.
+/* Ensure these padded sizes are indeed multiples of ALIGNMENT, and some other
+ * various aspects of layout worth knowing about.
  */
 STATIC_ASSERT((SPAN_HDR_PADSZ % ALIGNMENT) == 0, span_header_size);
 STATIC_ASSERT((BLOCK_HDR_PADSZ % ALIGNMENT) == 0, block_header_size);
+STATIC_ASSERT(SPAN_HDR_PADSZ == 32, span_size_drifted);
+STATIC_ASSERT(BLOCK_HDR_PADSZ == 32, block_size_drifted);
+STATIC_ASSERT((MINIMUM_ALLOCATION & (MINIMUM_ALLOCATION - 1)) == 0, min_alloc_power_of_two);
 
 /* Get a pointer to the first block header after a span header, considering
  * padding.
@@ -136,24 +140,23 @@ int pagesize = 0;
  * To minimize system calls for small allocations, a minimum allocation size of
  * MINIMUM_ALLOCATION is requested.
  */
-
 usz maxusz(usz a, usz b) {
     return a > b ? a : b;
 }
 
 struct span *alloc_span(usz gross) {
-    usz req = maxusz(gross, MINIMUM_ALLOCATION);
-    req = ALIGN_UP(req, pagesize);
+    usz spsz = maxusz(gross, MINIMUM_ALLOCATION);
+    spsz = ALIGN_UP(spsz, pagesize);
 
     /* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
      */
-    struct span *sp = mmap(0, req, PROT_WRITE | PROT_READ,
+    struct span *sp = mmap(0, spsz, PROT_WRITE | PROT_READ,
         MAP_ANON | MAP_PRIVATE, -1, 0);
 
     if (sp == MAP_FAILED)
         return 0;
 
-    sp->size = req;
+    sp->size = spsz;
     sp->next = base;    /* Prepend the span to the list. */
     base = sp;
 
@@ -161,7 +164,7 @@ struct span *alloc_span(usz gross) {
      * header.
      */
     sp->free_list = first_block(sp);
-    sp->free_list->size = gross;
+    sp->free_list->size = spsz - (usz)SPAN_HDR_PADSZ - (usz)BLOCK_HDR_PADSZ;
     sp->free_list->next = 0;
     sp->free_list->owner = sp;
     sp->free_list->free = 1;
@@ -170,12 +173,10 @@ struct span *alloc_span(usz gross) {
     return sp;
 }
 
-/* Place a block in the free space of the given span, big enough to serve the
- * requested size. The setup involves placing the block header, aligned to
- * ALIGNMENT bytes, pointing it to the next piece of free space in the span, if
- * any, and updating the span values.
+/* Allocate the given block to serve a malloc() request. The block header is
+ * already aligned, so the setup involves setting the metadata, splicing the
+ * block from its span's free list, and updating the span's metadata.
  */
-
 void alloc_block(usz size, struct block *bp) {
     (void)size;
     (void)bp;
@@ -261,5 +262,44 @@ void *malloc(usz size) {
 }
 
 int main(void) {
+    pagesize = getpagesize();
+
+    printf("PAGESIZE = %d\n", pagesize);
+    printf("SPAN_HDR_PADSZ = %d\n", SPAN_HDR_PADSZ);
+    printf("BLOCK_HDR_PADSZ = %d\n", BLOCK_HDR_PADSZ);
+    printf("ALIGNMENT = %d\n", ALIGNMENT);
+    printf("MINIMUM_ALLOCATION = %d\n", MINIMUM_ALLOCATION);
+    printf("ALIGN_UP(128, 16) = %d\n", ALIGN_UP(128, 16));
+
+    usz want = 128;
+    usz gross = gross_size(want);
+
+    printf("GROSS = %zu\n", gross);
+
+    struct span *sp = alloc_span(gross);
+    /* (lldb) p *sp
+       (span) {
+         size = 65536
+         next = NULL
+         free_list = 0x0000000100070020
+       }
+       (lldb) p *sp->free_list
+       (block) {
+         size = 65472
+         next = NULL
+         owner = 0x0000000100070000
+         free = 1
+         magic = 3200171710
+       }
+       (lldb) x sp -c 64
+    sp 0x100070000: 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+                    └─ size ──────────────┘ └─ next ──────────────┘
+       0x100070010: 20 00 07 00 01 00 00 00 00 00 00 00 00 00 00 00   ...............
+                    └─ free_list ─────────┘ └─ padding ───────────┘
+    bp 0x100070020: c0 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+                    └─ size ──────────────┘ └─ next ──────────────┘
+       0x100070030: 00 00 07 00 01 00 00 00 01 00 00 00 be be be be  ................
+                    └─ owner ─────────────┘ └─ free ──┘ └─ magic ─┘
+    */
     return 0;
 }
