@@ -65,9 +65,12 @@ typedef uintptr_t uptr;
 /* Get your bearings in the debugger.
  */
 #define MAGIC_BABY  0xbebebebe;
+#define MAGIC_SPENT 0xfafafafa;
 
 enum {
     ALIGNMENT = 16,
+    MINIMUM_BLKSZ = 64,     /* (?) This ought to at least be bigger than the
+                             * header. */
     MINIMUM_ALLOCATION = 64 * 1024,
 };
 
@@ -92,6 +95,7 @@ struct span {
 
 struct block {
     usz size;                   /* size including header */
+    struct block *prev;         /* prev free block */
     struct block *next;         /* next free block */
     struct span *owner;         /* span that holds ths block */
     b32 free;                   /* is this chunk free */
@@ -113,7 +117,7 @@ enum {
 STATIC_ASSERT((SPAN_HDR_PADSZ % ALIGNMENT) == 0, span_header_size);
 STATIC_ASSERT((BLOCK_HDR_PADSZ % ALIGNMENT) == 0, block_header_size);
 STATIC_ASSERT(SPAN_HDR_PADSZ == 32, span_size_drifted);
-STATIC_ASSERT(BLOCK_HDR_PADSZ == 32, block_size_drifted);
+STATIC_ASSERT(BLOCK_HDR_PADSZ == 48, block_size_drifted);
 STATIC_ASSERT((MINIMUM_ALLOCATION & (MINIMUM_ALLOCATION - 1)) == 0, min_alloc_power_of_two);
 
 /* Get a pointer to the first block header after a span header, considering
@@ -165,6 +169,7 @@ struct span *alloc_span(usz gross) {
      */
     sp->free_list = first_block(sp);
     sp->free_list->size = spsz - (usz)SPAN_HDR_PADSZ - (usz)BLOCK_HDR_PADSZ;
+    sp->free_list->prev = 0;
     sp->free_list->next = 0;
     sp->free_list->owner = sp;
     sp->free_list->free = 1;
@@ -173,13 +178,49 @@ struct span *alloc_span(usz gross) {
     return sp;
 }
 
+/* Take block bp off of its span's free list.
+ */
+void sever_block(struct block *bp) {
+    struct span *sp = bp->owner;
+    if (!bp->prev) {
+        /* bp is first in the free list. Point the span to whatever is next,
+         * and make that the start of the list.
+         */
+        sp->free_list = bp->next;
+        if (sp->free_list)
+            sp->free_list->prev = 0;
+    } else {
+        /* Point the previous block to bp's next block, and vice versa (if
+         * there is a next block).
+         */
+        bp->prev->next = bp->next;
+        if (bp->next)
+            bp->next->prev = bp->prev;
+    }
+}
+
 /* Allocate the given block to serve a malloc() request. The block header is
- * already aligned, so the setup involves setting the metadata, splicing the
+ * already aligned, so the setup involves setting the metadata, removing the
  * block from its span's free list, and updating the span's metadata.
  */
-void alloc_block(usz size, struct block *bp) {
-    (void)size;
-    (void)bp;
+void alloc_block(usz gross, struct block *bp) {
+    /* bp points to a currently free block. Its size is bigger than or equal to
+     * gross. If the remaining space after splitting is too small, take the
+     * fragmentation and assign the entire block. Otherwise, split.
+     */
+    if (bp->size - gross < MINIMUM_BLKSZ) {
+        sever_block(bp);
+    } else {
+        // split_block(gross, bp);
+        // sever_block(bp);
+    }
+
+    /* No need to update bp's size. If it was split, split_block took care of
+     * that. Otherwise, its entire size is already correct.
+     */
+    bp->free = 0;               /* Occupied. */
+    bp->magic = MAGIC_SPENT;
+    bp->prev = bp->next = 0;    /* Not strictly necessary. */
 }
 
 /* Traverse the free list of each span to find a free block big enough to serve
@@ -248,10 +289,10 @@ void *malloc(usz size) {
     }
 
     /* Allocate the block at bp to the caller. Split the free space if
-     * possible, splice the block from the free list, and update block and span
+     * possible, sever the block from the free list, and update block and span
      * metadata.
      */
-    alloc_block(size, bp);
+    alloc_block(gross, bp);
 
     /* The caller's memory comes after the block header, which is padded to
      * ALIGNMENT bytes to ensure the memory itself is aligned. The memory is
@@ -277,6 +318,7 @@ int main(void) {
     printf("GROSS = %zu\n", gross);
 
     struct span *sp = alloc_span(gross);
+    (void)sp;
     /* (lldb) p *sp
        (span) {
          size = 65536
