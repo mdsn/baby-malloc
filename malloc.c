@@ -62,10 +62,14 @@ typedef uintptr_t uptr;
  */
 #define STATIC_ASSERT(cond, name) typedef char static_assert_##name[(cond)?1:-1]
 
+/* See https://nullprogram.com/blog/2023/10/08/
+ * #define assert(c)  while (!(c)) __builtin_unreachable()
+ */
+
 /* Get your bearings in the debugger.
  */
 #define MAGIC_BABY  0xbebebebe;
-#define MAGIC_SPENT 0xfafafafa;
+#define MAGIC_SPENT 0xdededede;
 
 enum {
     ALIGNMENT = 16,
@@ -182,6 +186,11 @@ struct span *alloc_span(usz gross) {
  */
 void sever_block(struct block *bp) {
     struct span *sp = bp->owner;
+
+    if (bp->next) assert(bp->next->prev == bp);
+    if (bp->prev) assert(bp->prev->next == bp);
+    else          assert(sp->free_list == bp);
+
     if (!bp->prev) {
         /* bp is first in the free list. Point the span to whatever is next,
          * and make that the start of the list.
@@ -197,6 +206,14 @@ void sever_block(struct block *bp) {
         if (bp->next)
             bp->next->prev = bp->prev;
     }
+}
+
+/* Place a new block header in the remaining space of bp in the free list and
+ * take bp's spot.
+ */
+void split_block(usz gross, struct block *bp) {
+    (void)gross;
+    (void)bp;
 }
 
 /* Allocate the given block to serve a malloc() request. The block header is
@@ -219,7 +236,7 @@ void alloc_block(usz gross, struct block *bp) {
      * that. Otherwise, its entire size is already correct.
      */
     bp->free = 0;               /* Occupied. */
-    bp->magic = MAGIC_SPENT;
+    bp->magic = MAGIC_SPENT;    /* Take the poison. */
     bp->prev = bp->next = 0;    /* Not strictly necessary. */
 }
 
