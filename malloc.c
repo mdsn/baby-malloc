@@ -15,6 +15,7 @@ typedef int32_t b32;
 typedef size_t usz;
 typedef ptrdiff_t isz;
 typedef uintptr_t uptr;
+typedef unsigned char byte;
 
 /* A blank box for diagrams :>
  * ┌────────────────────────┐
@@ -208,36 +209,54 @@ void sever_block(struct block *bp) {
     }
 }
 
-/* Place a new block header in the remaining space of bp in the free list and
- * take bp's spot.
+/* Reduce the size of bp and create a new block at the end of its free space,
+ * with size gross.
  */
-void split_block(usz gross, struct block *bp) {
-    (void)gross;
-    (void)bp;
+struct block *split_block(usz gross, struct block *bp) {
+    assert(bp && bp->size > gross);
+    struct span *sp = bp->owner;
+    bp->size -= gross;  /* Make free block smaller and leave it in the list. */
+
+    /* Compute new block position.
+     */
+    byte *nb = (byte *)(bp + bp->size - gross);
+
+    /* gross is already aligned, so it is safe to place a new header there.
+     */
+    bp = (struct block *)nb;
+    bp->size = gross;
+    bp->owner = sp;
+    bp->free = 0;               /* Occupied. */
+    bp->prev = bp->next = 0;    /* Not strictly necessary. */
+    bp->magic = MAGIC_SPENT;    /* Take the poison. */
+    return bp;
 }
 
-/* Allocate the given block to serve a malloc() request. The block header is
- * already aligned, so the setup involves setting the metadata, removing the
- * block from its span's free list, and updating the span's metadata.
+/* Use the given block to serve a malloc() request. If the block is big enough
+ * to split, the request is served with a new block placed at the end of the
+ * free block. The free block is reduced and left in the free list.
  */
-void alloc_block(usz gross, struct block *bp) {
+struct block *alloc_block(usz gross, struct block *bp) {
+    assert(bp && bp->free);
+
     /* bp points to a currently free block. Its size is bigger than or equal to
      * gross. If the remaining space after splitting is too small, take the
      * fragmentation and assign the entire block. Otherwise, split.
      */
     if (bp->size - gross < MINIMUM_BLKSZ) {
         sever_block(bp);
+        /* No need to update bp's size. Its entire size is already correct.
+         */
+        bp->free = 0;               /* Occupied. */
+        bp->prev = bp->next = 0;    /* Not strictly necessary. */
+        bp->magic = MAGIC_SPENT;    /* Take the poison. */
     } else {
-        // split_block(gross, bp);
-        // sever_block(bp);
+        /* split_block takes care of fully initializing the new block.
+         */
+        bp = split_block(gross, bp);
     }
 
-    /* No need to update bp's size. If it was split, split_block took care of
-     * that. Otherwise, its entire size is already correct.
-     */
-    bp->free = 0;               /* Occupied. */
-    bp->magic = MAGIC_SPENT;    /* Take the poison. */
-    bp->prev = bp->next = 0;    /* Not strictly necessary. */
+    return bp;
 }
 
 /* Traverse the free list of each span to find a free block big enough to serve
@@ -309,7 +328,7 @@ void *malloc(usz size) {
      * possible, sever the block from the free list, and update block and span
      * metadata.
      */
-    alloc_block(gross, bp);
+    bp = alloc_block(gross, bp);
 
     /* The caller's memory comes after the block header, which is padded to
      * ALIGNMENT bytes to ensure the memory itself is aligned. The memory is
@@ -336,29 +355,5 @@ int main(void) {
 
     struct span *sp = alloc_span(gross);
     (void)sp;
-    /* (lldb) p *sp
-       (span) {
-         size = 65536
-         next = NULL
-         free_list = 0x0000000100070020
-       }
-       (lldb) p *sp->free_list
-       (block) {
-         size = 65472
-         next = NULL
-         owner = 0x0000000100070000
-         free = 1
-         magic = 3200171710
-       }
-       (lldb) x sp -c 64
-    sp 0x100070000: 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-                    └─ size ──────────────┘ └─ next ──────────────┘
-       0x100070010: 20 00 07 00 01 00 00 00 00 00 00 00 00 00 00 00   ...............
-                    └─ free_list ─────────┘ └─ padding ───────────┘
-    bp 0x100070020: c0 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-                    └─ size ──────────────┘ └─ next ──────────────┘
-       0x100070030: 00 00 07 00 01 00 00 00 01 00 00 00 be be be be  ................
-                    └─ owner ─────────────┘ └─ free ──┘ └─ magic ─┘
-    */
     return 0;
 }
