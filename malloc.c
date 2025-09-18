@@ -173,7 +173,7 @@ struct span *alloc_span(usz gross) {
      * header.
      */
     sp->free_list = first_block(sp);
-    sp->free_list->size = spsz - (usz)SPAN_HDR_PADSZ - (usz)BLOCK_HDR_PADSZ;
+    sp->free_list->size = spsz - (usz)SPAN_HDR_PADSZ;
     sp->free_list->prev = 0;
     sp->free_list->next = 0;
     sp->free_list->owner = sp;
@@ -215,11 +215,15 @@ void sever_block(struct block *bp) {
 struct block *split_block(usz gross, struct block *bp) {
     assert(bp && bp->size > gross);
     struct span *sp = bp->owner;
-    bp->size -= gross;  /* Make free block smaller and leave it in the list. */
 
     /* Compute new block position.
      */
-    byte *nb = (byte *)(bp + bp->size - gross);
+    byte *nb = (byte *)bp + bp->size - gross;
+    assert((uptr)nb % ALIGNMENT == 0); /* nb is aligned */
+    /* nb landed within the span */
+    assert((uptr)sp < (uptr)nb && (uptr)nb < ((uptr)sp + sp->size));
+
+    bp->size -= gross;  /* Make free block smaller and leave it in the list. */
 
     /* gross is already aligned, so it is safe to place a new header there.
      */
@@ -354,6 +358,12 @@ int main(void) {
     printf("GROSS = %zu\n", gross);
 
     struct span *sp = alloc_span(gross);
-    (void)sp;
+
+    struct block *bp = find_block(gross);
+    assert(bp->owner == sp);
+
+    struct block *b1 = alloc_block(gross, bp);
+    assert(bp->size + b1->size + SPAN_HDR_PADSZ == sp->size);
+
     return 0;
 }
