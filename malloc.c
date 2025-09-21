@@ -364,6 +364,29 @@ int main(void) {
 
     struct block *b1 = alloc_block(gross, bp);
     assert(bp->size + b1->size + SPAN_HDR_PADSZ == sp->size);
+    assert(bp->free && !b1->free);
+
+    struct block *b2 = alloc_block(gross, bp);
+    assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
+    assert(bp->free && !b2->free);
+
+    usz used = b1->size + b2->size;
+    usz rest = sp->size - SPAN_HDR_PADSZ - used;
+    /* Request using up almost all free space. MINIMUM_BLKSZ is 64, so leaving
+     * 24 bytes should cause the allocator to give out the entire piece. Take
+     * BLOCK_HDR_PADSZ to account for gross_size() adding that to its result.
+     */
+    want = rest - 48 - 24;
+    gross = gross_size(want);
+
+    /* Here rest = 65152, want = 65080 and gross = 65136. gross leaves 16 bytes
+     * at the end of sp, so we should get it all.
+     */
+    struct block *b3 = alloc_block(gross, bp);
+    assert(bp == b3); /* We just got bp back */
+    assert(!bp->free);
+    assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
+    assert(!sp->free_list); /* All span is used, no more free blocks. */
 
     return 0;
 }
