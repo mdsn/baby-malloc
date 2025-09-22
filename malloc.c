@@ -149,12 +149,12 @@ int pagesize = 0;
  * To minimize system calls for small allocations, a minimum allocation size of
  * MINIMUM_ALLOCATION is requested.
  */
-usz maxusz(usz a, usz b) {
+usz usz_max(usz a, usz b) {
     return a > b ? a : b;
 }
 
 struct span *alloc_span(usz gross) {
-    usz spsz = maxusz(gross, MINIMUM_ALLOCATION);
+    usz spsz = usz_max(gross, MINIMUM_ALLOCATION);
     spsz = ALIGN_UP(spsz, pagesize);
 
     /* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
@@ -342,15 +342,12 @@ void *malloc(usz size) {
     return bp + 1;
 }
 
-int main(void) {
-    pagesize = getpagesize();
-
-    printf("PAGESIZE = %d\n", pagesize);
-    printf("SPAN_HDR_PADSZ = %d\n", SPAN_HDR_PADSZ);
-    printf("BLOCK_HDR_PADSZ = %d\n", BLOCK_HDR_PADSZ);
-    printf("ALIGNMENT = %d\n", ALIGNMENT);
-    printf("MINIMUM_ALLOCATION = %d\n", MINIMUM_ALLOCATION);
-    printf("ALIGN_UP(128, 16) = %d\n", ALIGN_UP(128, 16));
+/* Get a span for a 128 bytes request. MINIMUM_ALLOCATION (64k) gets allocated.
+ * Take two blocks to serve 128 byte requests, and one large request for all the
+ * rest.
+ */
+void test1(void) {
+    printf("==== Test 1 ====\n");
 
     usz want = 128;
     usz gross = gross_size(want);
@@ -387,6 +384,19 @@ int main(void) {
     assert(!bp->free);
     assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
     assert(!sp->free_list); /* All span is used, no more free blocks. */
+}
+
+int main(void) {
+    pagesize = getpagesize();
+
+    printf("PAGESIZE = %d\n", pagesize);
+    printf("SPAN_HDR_PADSZ = %d\n", SPAN_HDR_PADSZ);
+    printf("BLOCK_HDR_PADSZ = %d\n", BLOCK_HDR_PADSZ);
+    printf("ALIGNMENT = %d\n", ALIGNMENT);
+    printf("MINIMUM_ALLOCATION = %d\n", MINIMUM_ALLOCATION);
+    printf("ALIGN_UP(128, 16) = %d\n", ALIGN_UP(128, 16));
+
+    test1();
 
     return 0;
 }
