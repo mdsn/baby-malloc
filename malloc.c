@@ -63,6 +63,10 @@ typedef unsigned char byte;
  */
 #define STATIC_ASSERT(cond, name) typedef char static_assert_##name[(cond)?1:-1]
 
+void assert_aligned(usz x, usz a) {
+    assert(x % a == 0);
+}
+
 /* See https://nullprogram.com/blog/2023/10/08/
  * #define assert(c)  while (!(c)) __builtin_unreachable()
  */
@@ -346,15 +350,17 @@ void *malloc(usz size) {
  * Take two blocks to serve 128 byte requests, and one large request for all the
  * rest.
  */
-void test1(void) {
-    printf("==== Test 1 ====\n");
+void test_minimum_span_allocation(void) {
+    printf("==== test 1: 64k allocation ====\n");
 
     usz want = 128;
     usz gross = gross_size(want);
-
-    printf("GROSS = %zu\n", gross);
+    printf("gross = %zu\n", gross);
 
     struct span *sp = alloc_span(gross);
+    assert(sp && sp->size >= gross);
+    assert_aligned(sp->size, pagesize);
+    printf("span sz = %zu\n", sp->size);
 
     struct block *bp = find_block(gross);
     assert(bp->owner == sp);
@@ -386,17 +392,30 @@ void test1(void) {
     assert(!sp->free_list); /* All span is used, no more free blocks. */
 }
 
+void test_large_span_allocation(void) {
+    printf("==== test 2: 1M allocation ====\n");
+    usz want = 1024 * 1024;
+    usz gross = gross_size(want);
+    printf("gross = %zu\n", gross);
+
+    struct span *sp = alloc_span(gross);
+    assert(sp && sp->size >= gross);
+    assert_aligned(sp->size, pagesize);
+    printf("span sz = %zu\n", sp->size);
+}
+
 int main(void) {
     pagesize = getpagesize();
 
-    printf("PAGESIZE = %d\n", pagesize);
-    printf("SPAN_HDR_PADSZ = %d\n", SPAN_HDR_PADSZ);
-    printf("BLOCK_HDR_PADSZ = %d\n", BLOCK_HDR_PADSZ);
-    printf("ALIGNMENT = %d\n", ALIGNMENT);
-    printf("MINIMUM_ALLOCATION = %d\n", MINIMUM_ALLOCATION);
-    printf("ALIGN_UP(128, 16) = %d\n", ALIGN_UP(128, 16));
+    printf("pagesize = %d\n", pagesize);
+    printf("span_hdr_padsz = %d\n", SPAN_HDR_PADSZ);
+    printf("block_hdr_padsz = %d\n", BLOCK_HDR_PADSZ);
+    printf("alignment = %d\n", ALIGNMENT);
+    printf("minimum_allocation = %d\n", MINIMUM_ALLOCATION);
+    printf("align_up(128, 16) = %d\n", ALIGN_UP(128, 16));
 
-    test1();
+    test_minimum_span_allocation();
+    test_large_span_allocation();
 
     return 0;
 }
