@@ -1,0 +1,85 @@
+#include <assert.h>
+#include <unistd.h> /* getpagesize */
+#include <stdio.h>
+
+#include "malloc.h"
+#include "internal.h"
+
+extern int pagesize; /* defined in malloc.c */
+
+void test_minimum_span_allocation(void);
+void test_large_span_allocation(void);
+
+int main(void) {
+    pagesize = getpagesize();
+
+    printf("pagesize = %d\n", pagesize);
+    printf("span_hdr_padsz = %d\n", SPAN_HDR_PADSZ);
+    printf("block_hdr_padsz = %d\n", BLOCK_HDR_PADSZ);
+    printf("alignment = %d\n", ALIGNMENT);
+    printf("minimum_allocation = %d\n", MINIMUM_ALLOCATION);
+    printf("align_up(128, 16) = %d\n", ALIGN_UP(128, 16));
+
+    test_minimum_span_allocation();
+    test_large_span_allocation();
+
+    return 0;
+}
+
+/* Get a span for a 128 bytes request. MINIMUM_ALLOCATION (64k) gets allocated.
+ * Take two blocks to serve 128 byte requests, and one large request for all the
+ * rest.
+ */
+void test_minimum_span_allocation(void) {
+    printf("==== test 1: 64k allocation ====\n");
+
+    usz want = 128;
+    usz gross = gross_size(want);
+    printf("gross = %zu\n", gross);
+
+    struct span *sp = alloc_span(gross);
+    assert(sp && sp->size >= gross);
+    assert_aligned(sp->size, pagesize);
+    printf("span sz = %zu\n", sp->size);
+
+    struct block *bp = find_block(gross);
+    assert(bp->owner == sp);
+
+    struct block *b1 = alloc_block(gross, bp);
+    assert(bp->size + b1->size + SPAN_HDR_PADSZ == sp->size);
+    assert(bp->free && !b1->free);
+
+    struct block *b2 = alloc_block(gross, bp);
+    assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
+    assert(bp->free && !b2->free);
+
+    usz used = b1->size + b2->size;
+    usz rest = sp->size - SPAN_HDR_PADSZ - used;
+    /* Request using up almost all free space. MINIMUM_BLKSZ is 64, so leaving
+     * 24 bytes should cause the allocator to give out the entire piece. Take
+     * BLOCK_HDR_PADSZ to account for gross_size() adding that to its result.
+     */
+    want = rest - 48 - 24;
+    gross = gross_size(want);
+
+    /* Here rest = 65152, want = 65080 and gross = 65136. gross leaves 16 bytes
+     * at the end of sp, so we should get it all.
+     */
+    struct block *b3 = alloc_block(gross, bp);
+    assert(bp == b3); /* We just got bp back */
+    assert(!bp->free);
+    assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
+    assert(!sp->free_list); /* All span is used, no more free blocks. */
+}
+
+void test_large_span_allocation(void) {
+    printf("==== test 2: 1M allocation ====\n");
+    usz want = 1024 * 1024;
+    usz gross = gross_size(want);
+    printf("gross = %zu\n", gross);
+
+    struct span *sp = alloc_span(gross);
+    assert(sp && sp->size >= gross);
+    assert_aligned(sp->size, pagesize);
+    printf("span sz = %zu\n", sp->size);
+}
