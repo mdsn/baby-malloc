@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <unistd.h> /* getpagesize */
 #include <sys/mman.h> /* mmap */
+#include <string.h> /* memset */
 
 #include "malloc.h"
 #include "internal.h"
@@ -116,6 +117,32 @@ struct span *alloc_span(usz gross) {
     return sp;
 }
 
+/* Remove sp from the list of spans.
+ */
+void sever_span(struct span *sp) {
+    if (sp == base) {
+        base = sp->next;
+        sp->next = 0;
+    } else {
+        /* sp is not first. Find the previous span.
+         */
+        struct span *p = base;
+        while (p && p->next && p->next != sp)
+            p = p->next;
+        p->next = sp->next;
+        sp->next = 0;
+    }
+}
+
+/* Return an entire span to the OS.
+ * Eventually this could assert on a count of free blocks.
+ * XXX return the value from munmap?
+ */
+void free_span(struct span *sp) {
+    sever_span(sp);
+    munmap(sp, sp->size);
+}
+
 /* Take block bp off of its span's free list.
  */
 void sever_block(struct block *bp) {
@@ -228,8 +255,7 @@ usz gross_size(usz size) {
  * bytes requested by the user. If one does not exist, a new span is mmap'd and
  * linked to the span list, and used to serve the request.
  */
-
-void *malloc(usz size) {
+void *m_malloc(usz size) {
     if (size == 0)
         return 0;
 
@@ -275,3 +301,32 @@ void *malloc(usz size) {
     return bp + 1;
 }
 
+/* Find the struct block * from a void * given by malloc.
+ */
+struct block *block_from_payload(void *p) {
+    return (struct block *)((char *)p - BLOCK_HDR_PADSZ);
+}
+
+/* Give back a block of memory to its span.
+ */
+void m_free(void *p) {
+    if (!p)
+        return;
+
+    struct block *bp = block_from_payload(p);
+    assert(!bp->free);
+
+    struct span *sp = bp->owner;
+
+    bp->free = 1;
+    bp->magic = MAGIC_BABY;
+    bp->prev = 0;
+    bp->next = sp->free_list;
+    sp->free_list = bp;
+    if (bp->next)
+        bp->next->prev = bp;
+
+    /* Poison the payload for visibility.
+     */
+    memset(p, 0xae, bp->size);
+}

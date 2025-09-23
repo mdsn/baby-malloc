@@ -63,6 +63,7 @@ usz gross_size(usz size);
 void assert_aligned(usz x, usz a);
 
 struct span *alloc_span(usz gross);
+void free_span(struct span *sp);
 
 struct block *find_block(usz gross);
 struct block *alloc_block(usz gross, struct block *bp);

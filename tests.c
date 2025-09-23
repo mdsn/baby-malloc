@@ -6,11 +6,17 @@
 #include "internal.h"
 
 extern int pagesize; /* defined in malloc.c */
+extern struct span *base; /* defined in malloc.c */
 
 void test_minimum_span_allocation(void);
 void test_large_span_allocation(void);
+void test_free_span(void);
+void test_free_single_block(void);
 
 int main(void) {
+    /* malloc() calls this, so when testing helper functions it needs to be set
+     * manually.
+     */
     pagesize = getpagesize();
 
     printf("pagesize = %d\n", pagesize);
@@ -22,6 +28,7 @@ int main(void) {
 
     test_minimum_span_allocation();
     test_large_span_allocation();
+    test_free_span();
 
     return 0;
 }
@@ -70,6 +77,9 @@ void test_minimum_span_allocation(void) {
     assert(!bp->free);
     assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
     assert(!sp->free_list); /* All span is used, no more free blocks. */
+
+    /* Clean up. */
+    free_span(sp);
 }
 
 void test_large_span_allocation(void) {
@@ -82,4 +92,28 @@ void test_large_span_allocation(void) {
     assert(sp && sp->size >= gross);
     assert_aligned(sp->size, pagesize);
     printf("span sz = %zu\n", sp->size);
+
+    /* Clean up. */
+    free_span(sp);
+}
+
+void test_free_span(void) {
+    printf("==== test_free_span ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    assert(sp && sp->size == MINIMUM_ALLOCATION);
+    /* sp is the only span on the global list. This actually depends on the
+     * other tests cleaning up after themselves.
+     */
+    assert(base == sp);
+
+    free_span(sp);
+
+    assert(base != sp);
+    /* sp has been munmapped--reading through it will segfault. */
+}
+
+void test_free_single_block(void) {
+    /* Tomorrow */
 }
