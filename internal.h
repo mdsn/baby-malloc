@@ -61,11 +61,15 @@ STATIC_ASSERT((MINIMUM_ALLOCATION & (MINIMUM_ALLOCATION - 1)) == 0, min_alloc_po
 usz gross_size(usz size);
 
 void assert_aligned(usz x, usz a);
+void assert_ptr_aligned(void *p, usz a);
 
 struct span *alloc_span(usz gross);
 void free_span(struct span *sp);
 
 struct block *find_block(usz gross);
 struct block *alloc_block(usz gross, struct block *bp);
+
+struct block *block_from_payload(void *p);
+void *payload_from_block(struct block *bp);
 
 #endif

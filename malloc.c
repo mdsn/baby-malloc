@@ -51,6 +51,12 @@ void assert_aligned(usz x, usz a) {
     assert(x % a == 0);
 }
 
+void assert_ptr_aligned(void *p, usz a) {
+    /* XXX how do uintptr_t and size_t relate?
+     */
+    assert((uptr)p % a == 0);
+}
+
 /* Align a pointer to the next multiple of 16 address.
  */
 void *align_ptr(void *p) {
@@ -250,6 +256,18 @@ usz gross_size(usz size) {
     return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT);
 }
 
+/* Find the struct block * from a void * given by malloc.
+ */
+struct block *block_from_payload(void *p) {
+    return (struct block *)((char *)p - BLOCK_HDR_PADSZ);
+}
+
+/* Get a pointer to the aligned memory owned by a block header.
+ */
+void *payload_from_block(struct block *bp) {
+    return (char *)bp + BLOCK_HDR_PADSZ;
+}
+
 /* Serve a request for memory for the caller. Search for an already mmap'd span
  * with enough available space for the new block: its header, and the number of
  * bytes requested by the user. If one does not exist, a new span is mmap'd and
@@ -298,13 +316,7 @@ void *m_malloc(usz size) {
      * extended to a multiple of ALIGNMENT too, to ensure any subsequent
      * block header is automatically aligned.
      */
-    return bp + 1;
-}
-
-/* Find the struct block * from a void * given by malloc.
- */
-struct block *block_from_payload(void *p) {
-    return (struct block *)((char *)p - BLOCK_HDR_PADSZ);
+    return payload_from_block(bp);
 }
 
 /* Give back a block of memory to its span.
@@ -328,5 +340,5 @@ void m_free(void *p) {
 
     /* Poison the payload for visibility.
      */
-    memset(p, 0xae, bp->size);
+    memset(p, 0xae, bp->size - BLOCK_HDR_PADSZ);
 }

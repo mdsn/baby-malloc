@@ -29,6 +29,7 @@ int main(void) {
     test_minimum_span_allocation();
     test_large_span_allocation();
     test_free_span();
+    test_free_single_block();
 
     return 0;
 }
@@ -115,5 +116,41 @@ void test_free_span(void) {
 }
 
 void test_free_single_block(void) {
-    /* Tomorrow */
+    printf("==== test_free_single_block ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    assert(sp && sp->size == MINIMUM_ALLOCATION);
+    assert(base == sp);
+
+    struct block *bp = find_block(gross);
+    assert(bp && bp->owner == sp);
+    assert_ptr_aligned(bp, ALIGNMENT);
+
+    struct block *b1 = alloc_block(gross, bp);
+    assert_ptr_aligned(b1, ALIGNMENT);
+
+    /* This is the payload pointer that malloc would give to a caller.
+     */
+    char *p = payload_from_block(b1);
+
+    /* TODO test block_from_payload() and its inverse separately.
+     */
+    struct block *b2 = block_from_payload(p);
+    assert(b1 == b2);
+    assert(!b2->free);
+    assert(b2->magic == MAGIC_SPENT);
+
+    /* Act. */
+    m_free(p);
+
+    assert(b2->free);
+    assert(b2->magic == MAGIC_BABY);
+    assert(sp->free_list == b2);
+    assert(b2->next && b2->next == bp);
+    assert(bp->prev && bp->prev == b2);
+    assert(!bp->next);
+    assert(!b2->prev);
+
+    free_span(sp);
 }
