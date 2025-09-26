@@ -13,6 +13,7 @@ void test_large_span_allocation(void);
 void test_free_span(void);
 void test_free_single_block(void);
 void test_payload_from_block(void);
+void test_block_from_payload(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -32,6 +33,7 @@ int main(void) {
     test_free_span();
     test_free_single_block();
     test_payload_from_block();
+    test_block_from_payload();
 
     return 0;
 }
@@ -122,9 +124,26 @@ void test_payload_from_block(void) {
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
     struct block *bp = find_block(gross);
+
     char *p = payload_from_block(bp);
+
     assert(p && (uptr)p > (uptr)bp);
     assert((uptr)p - (uptr)bp == BLOCK_HDR_PADSZ);
+
+    free_span(sp);
+}
+
+void test_block_from_payload(void) {
+    printf("==== test_block_from_payload ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+    struct block *bp = find_block(gross);
+    char *p = payload_from_block(bp);
+
+    struct block *bq = block_from_payload(p);
+
+    assert(bq && bq == bp);
+
     free_span(sp);
 }
 
