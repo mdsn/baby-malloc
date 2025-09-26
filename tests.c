@@ -12,6 +12,7 @@ void test_minimum_span_allocation(void);
 void test_large_span_allocation(void);
 void test_free_span(void);
 void test_free_single_block(void);
+void test_payload_from_block(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -30,6 +31,7 @@ int main(void) {
     test_large_span_allocation();
     test_free_span();
     test_free_single_block();
+    test_payload_from_block();
 
     return 0;
 }
@@ -113,6 +115,17 @@ void test_free_span(void) {
 
     assert(base != sp);
     /* sp has been munmapped--reading through it will segfault. */
+}
+
+void test_payload_from_block(void) {
+    printf("==== test_payload_from_block ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+    struct block *bp = find_block(gross);
+    char *p = payload_from_block(bp);
+    assert(p && (uptr)p > (uptr)bp);
+    assert((uptr)p - (uptr)bp == BLOCK_HDR_PADSZ);
+    free_span(sp);
 }
 
 void test_free_single_block(void) {
