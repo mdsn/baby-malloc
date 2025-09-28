@@ -10,7 +10,8 @@ extern struct span *base; /* defined in malloc.c */
 
 void test_minimum_span_allocation(void);
 void test_large_span_allocation(void);
-void test_free_span(void);
+void test_alloc_multiple_spans(void);
+void test_free_only_span(void);
 void test_free_single_block(void);
 void test_payload_from_block(void);
 void test_block_from_payload(void);
@@ -30,10 +31,11 @@ int main(void) {
 
     test_minimum_span_allocation();
     test_large_span_allocation();
-    test_free_span();
+    test_free_only_span();
     test_free_single_block();
     test_payload_from_block();
     test_block_from_payload();
+    test_alloc_multiple_spans();
 
     return 0;
 }
@@ -43,16 +45,14 @@ int main(void) {
  * rest.
  */
 void test_minimum_span_allocation(void) {
-    printf("==== test 1: 64k allocation ====\n");
-
+    printf("==== test_minimum_span_allocation ====\n");
     usz want = 128;
     usz gross = gross_size(want);
-    printf("gross = %zu\n", gross);
 
     struct span *sp = alloc_span(gross);
     assert(sp && sp->size >= gross);
+    assert(!sp->prev && !sp->next);
     assert_aligned(sp->size, pagesize);
-    printf("span sz = %zu\n", sp->size);
 
     struct block *bp = find_block(gross);
     assert(bp->owner == sp);
@@ -88,22 +88,20 @@ void test_minimum_span_allocation(void) {
 }
 
 void test_large_span_allocation(void) {
-    printf("==== test 2: 1M allocation ====\n");
+    printf("==== test_large_span_allocation ====\n");
     usz want = 1024 * 1024;
     usz gross = gross_size(want);
-    printf("gross = %zu\n", gross);
 
     struct span *sp = alloc_span(gross);
     assert(sp && sp->size >= gross);
     assert_aligned(sp->size, pagesize);
-    printf("span sz = %zu\n", sp->size);
 
     /* Clean up. */
     free_span(sp);
 }
 
-void test_free_span(void) {
-    printf("==== test_free_span ====\n");
+void test_free_only_span(void) {
+    printf("==== test_free_only_span ====\n");
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
 
@@ -115,8 +113,58 @@ void test_free_span(void) {
 
     free_span(sp);
 
-    assert(base != sp);
+    assert(!base);
     /* sp has been munmapped--reading through it will segfault. */
+}
+
+void test_alloc_multiple_spans(void) {
+    printf("==== test_alloc_multiple_spans ====\n");
+    usz gross = gross_size(64);
+    struct span *s1 = alloc_span(gross);
+    struct span *s2 = alloc_span(gross);
+    struct span *s3 = alloc_span(gross);
+
+    assert(s3 && base == s3); /* alloc_span prepends */
+    assert(s2 && s3->next == s2 && s2->prev == s3);
+    assert(s1 && s2->next == s1 && s1->prev == s2);
+    assert(!s3->prev && !s1->next);
+
+    free_span(s1);
+    free_span(s2);
+    free_span(s3);
+}
+
+void test_free_multiple_spans(void) {
+    printf("==== test_free_multiple_spans ====\n");
+    usz gross = gross_size(64);
+    struct span *s1 = alloc_span(gross);
+    struct span *s2 = alloc_span(gross);
+    struct span *s3 = alloc_span(gross);
+
+    /* free first span on the list */
+    free_span(s3);
+
+    assert(base == s2);
+    assert(!s2->prev);
+
+    /* free last span on the list */
+    free_span(s1);
+    assert(base == s2);
+    assert(!s2->next);
+
+    /* free last remaining span */
+    free_span(s2);
+    assert(!base);
+
+    /* Reallocate to test removing the middle span */
+    s1 = alloc_span(gross);
+    s2 = alloc_span(gross);
+    s3 = alloc_span(gross);
+
+    free_span(s2);
+    assert(base == s3);
+    assert(s3->next == s1 && s1->prev == s3);
+    assert(!s3->prev && !s1->next);
 }
 
 void test_payload_from_block(void) {

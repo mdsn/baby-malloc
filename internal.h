@@ -19,6 +19,7 @@ typedef unsigned char byte;
 
 struct span {
     usz size;                   /* size including header */
+    struct span *prev;
     struct span *next;
     struct block *free_list;
                                 /* XXX: count of blocks in use? */

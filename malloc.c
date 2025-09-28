@@ -107,6 +107,8 @@ struct span *alloc_span(usz gross) {
 
     sp->size = spsz;
     sp->next = base;    /* Prepend the span to the list. */
+    if (sp->next)
+        sp->next->prev = sp;
     base = sp;
 
     /* Place one initial all-spanning free block immediately after the span
@@ -129,13 +131,14 @@ void sever_span(struct span *sp) {
     if (sp == base) {
         base = sp->next;
         sp->next = 0;
+        if (base)
+            base->prev = 0;
     } else {
-        /* sp is not first. Find the previous span.
-         */
-        struct span *p = base;
-        while (p && p->next && p->next != sp)
-            p = p->next;
-        p->next = sp->next;
+        assert(sp->prev);
+        sp->prev->next = sp->next;
+        if (sp->next)
+            sp->next->prev = sp->prev;
+        sp->prev = 0;
         sp->next = 0;
     }
 }
