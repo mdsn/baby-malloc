@@ -3,6 +3,9 @@
 CC = cc
 CFLAGS = -std=c99 -fsanitize=address,undefined -g -O0 -pedantic -Wall -Wextra
 
+# Apple's libmalloc complains if address sanitizer takes over its space. Silence it:
+TESTENV = MallocNanoZone=0
+
 .PHONY: all clean test
 
 all: malloc.dylib tests
@@ -19,7 +22,7 @@ tests.o: tests.c malloc.h internal.h Makefile
 
 test:
 	make tests
-	./tests
+	$(TESTENV) ./tests
 
 clean:
 	rm -f malloc.dylib malloc.o
