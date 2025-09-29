@@ -1,7 +1,7 @@
 .POSIX:
 
 CC = cc
-CFLAGS = -std=c99 -g -O0 -pedantic -Wall -Wextra
+CFLAGS = -std=c99 -fsanitize=address,undefined -g -O0 -pedantic -Wall -Wextra
 
 .PHONY: all clean test
 
