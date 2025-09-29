@@ -40,6 +40,7 @@ struct block {
 enum {
     BIT_IN_USE = 1,
     BIT_PREV_IN_USE = 2,
+    BLK_MASK = BIT_IN_USE | BIT_PREV_IN_USE,
 };
 
 /* Precomputed sizes of the headers and their padding, to be able to hop back
@@ -77,21 +78,14 @@ void free_span(struct span *sp);
 struct block *blkfind(usz gross);
 struct block *blkalloc(usz gross, struct block *bp);
 
-static inline b32 blkisfree(struct block *bp) { return !(bp->size & BIT_IN_USE); }
+static inline b32 blkisfree(struct block *bp) {
+    return !(bp->size & BIT_IN_USE);
+}
 static inline void blksetfree(struct block *bp) { bp->size &= ~BIT_IN_USE; }
 static inline void blksetused(struct block *bp) { bp->size |= BIT_IN_USE; }
-
-/* The size field also holds some bit flags in its least significant positions,
- * so these need to be taken into account when calculating the real size.
- */
-static inline usz blksize(struct block *bp) {
-    usz mask = BIT_IN_USE | BIT_PREV_IN_USE; // FIXME factor out flag mask
-    return bp->size & ~mask;
-}
-
+static inline usz blksize(struct block *bp) { return bp->size & ~BLK_MASK; }
 static inline void blksetsize(struct block *bp, usz size) {
-    usz mask = bp->size & (BIT_IN_USE | BIT_PREV_IN_USE);
-    bp->size = size | mask;
+    bp->size = size | (bp->size & BLK_MASK);
 }
 
 struct block *block_from_payload(void *p);
