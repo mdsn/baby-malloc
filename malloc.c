@@ -119,8 +119,8 @@ struct span *alloc_span(usz gross) {
     sp->free_list->next = 0;
     sp->free_list->owner = sp;
     sp->free_list->magic = MAGIC_BABY;
-    block_set_size(sp->free_list, spsz - (usz)SPAN_HDR_PADSZ);
-    block_set_free(sp->free_list);
+    blksetsize(sp->free_list, spsz - (usz)SPAN_HDR_PADSZ);
+    blksetfree(sp->free_list);
 
     return sp;
 }
@@ -154,27 +154,27 @@ void free_span(struct span *sp) {
 
 /* Block size and flags query and manipulation.
  */
-b32 block_is_free(struct block *bp) {
+b32 blkisfree(struct block *bp) {
     return !(bp->size & BIT_IN_USE);
 }
 
-void block_set_free(struct block *bp) {
+void blksetfree(struct block *bp) {
     bp->size &= ~BIT_IN_USE;
 }
 
-void block_set_used(struct block *bp) {
+void blksetused(struct block *bp) {
     bp->size |= BIT_IN_USE;
 }
 
 /* The size field also holds some bit flags in its least significant positions,
  * so these need to be taken into account when calculating the real size.
  */
-usz block_size(struct block *bp) {
+usz blksize(struct block *bp) {
     usz mask = BIT_IN_USE | BIT_PREV_IN_USE; // FIXME factor out flag mask
     return bp->size & ~mask;
 }
 
-void block_set_size(struct block *bp, usz size) {
+void blksetsize(struct block *bp, usz size) {
     usz mask = bp->size & (BIT_IN_USE | BIT_PREV_IN_USE);
     bp->size = size | mask;
 }
@@ -209,19 +209,19 @@ void sever_block(struct block *bp) {
  * with size gross.
  */
 struct block *split_block(usz gross, struct block *bp) {
-    assert(bp && block_size(bp) > gross);
+    assert(bp && blksize(bp) > gross);
     struct span *sp = bp->owner;
 
     /* Compute new block position.
      */
-    byte *nb = (byte *)bp + block_size(bp) - gross;
+    byte *nb = (byte *)bp + blksize(bp) - gross;
     assert((uptr)nb % ALIGNMENT == 0); /* nb is aligned */
     /* nb landed within the span */
     assert((uptr)sp < (uptr)nb && (uptr)nb < ((uptr)sp + sp->size));
 
     /* Make free block smaller and leave it in the list. */
-    usz bsz = block_size(bp) - gross;
-    block_set_size(bp, bsz);
+    usz bsz = blksize(bp) - gross;
+    blksetsize(bp, bsz);
 
     /* gross is already aligned, so it is safe to place a new header there.
      */
@@ -229,8 +229,8 @@ struct block *split_block(usz gross, struct block *bp) {
     bp->owner = sp;
     bp->prev = bp->next = 0;    /* Not strictly necessary. */
     bp->magic = MAGIC_SPENT;    /* Take the poison. */
-    block_set_size(bp, gross);
-    block_set_used(bp);
+    blksetsize(bp, gross);
+    blksetused(bp);
     return bp;
 }
 
@@ -238,18 +238,18 @@ struct block *split_block(usz gross, struct block *bp) {
  * to split, the request is served with a new block placed at the end of the
  * free block. The free block is reduced and left in the free list.
  */
-struct block *alloc_block(usz gross, struct block *bp) {
-    assert(bp && block_is_free(bp));
+struct block *blkalloc(usz gross, struct block *bp) {
+    assert(bp && blkisfree(bp));
 
     /* bp points to a currently free block. Its size is bigger than or equal to
      * gross. If the remaining space after splitting is too small, take the
      * fragmentation and assign the entire block. Otherwise, split.
      */
-    if (block_size(bp) - gross < MINIMUM_BLKSZ) {
+    if (blksize(bp) - gross < MINIMUM_BLKSZ) {
         sever_block(bp);
         /* No need to update bp's size. Its entire size is already correct.
          */
-        block_set_used(bp);
+        blksetused(bp);
         bp->prev = bp->next = 0;    /* Not strictly necessary. */
         bp->magic = MAGIC_SPENT;    /* Take the poison. */
     } else {
@@ -265,12 +265,12 @@ struct block *alloc_block(usz gross, struct block *bp) {
  * a request. The given size is the gross size--enough to hold the header and
  * the memory.
  */
-struct block *find_block(usz gross) {
+struct block *blkfind(usz gross) {
     struct span *sp = base;
     while (sp) {
         struct block *bp = sp->free_list;
         while (bp) {
-            if (block_size(bp) >= gross)
+            if (blksize(bp) >= gross)
                 return bp;
             bp = bp->next;
         }
@@ -321,7 +321,7 @@ void *m_malloc(usz size) {
 
     /* Try to find a block with enough space to serve the request.
      */
-    struct block *bp = find_block(gross);
+    struct block *bp = blkfind(gross);
 
     /* If no existing span has enough space to serve the request, or if there
      * is no existing span because this is the first call, a new span needs to
@@ -341,7 +341,7 @@ void *m_malloc(usz size) {
      * possible, sever the block from the free list, and update block and span
      * metadata.
      */
-    bp = alloc_block(gross, bp);
+    bp = blkalloc(gross, bp);
 
     /* The caller's memory comes after the block header, which is padded to
      * ALIGNMENT bytes to ensure the memory itself is aligned. The memory is
@@ -358,11 +358,11 @@ void m_free(void *p) {
         return;
 
     struct block *bp = block_from_payload(p);
-    assert(!block_is_free(bp));
+    assert(!blkisfree(bp));
 
     struct span *sp = bp->owner;
 
-    block_set_free(bp);
+    blksetfree(bp);
     bp->magic = MAGIC_BABY;
     bp->prev = 0;
     bp->next = sp->free_list;
@@ -372,5 +372,5 @@ void m_free(void *p) {
 
     /* Poison the payload for visibility.
      */
-    memset(p, 0xae, block_size(bp) - BLOCK_HDR_PADSZ);
+    memset(p, 0xae, blksize(bp) - BLOCK_HDR_PADSZ);
 }

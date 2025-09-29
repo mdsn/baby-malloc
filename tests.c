@@ -54,18 +54,18 @@ void test_minimum_span_allocation(void) {
     assert(!sp->prev && !sp->next);
     assert_aligned(sp->size, pagesize);
 
-    struct block *bp = find_block(gross);
+    struct block *bp = blkfind(gross);
     assert(bp && bp->owner == sp);
 
-    struct block *b1 = alloc_block(gross, bp);
-    assert(block_size(bp) + block_size(b1) + SPAN_HDR_PADSZ == sp->size);
-    assert(block_is_free(bp) && !block_is_free(b1));
+    struct block *b1 = blkalloc(gross, bp);
+    assert(blksize(bp) + blksize(b1) + SPAN_HDR_PADSZ == sp->size);
+    assert(blkisfree(bp) && !blkisfree(b1));
 
-    struct block *b2 = alloc_block(gross, bp);
-    assert(block_size(bp) + block_size(b1) + block_size(b2) + SPAN_HDR_PADSZ == sp->size);
-    assert(block_is_free(bp) && !block_is_free(b2));
+    struct block *b2 = blkalloc(gross, bp);
+    assert(blksize(bp) + blksize(b1) + blksize(b2) + SPAN_HDR_PADSZ == sp->size);
+    assert(blkisfree(bp) && !blkisfree(b2));
 
-    usz used = block_size(b1) + block_size(b2);
+    usz used = blksize(b1) + blksize(b2);
     usz rest = sp->size - SPAN_HDR_PADSZ - used;
     /* Request using up almost all free space. MINIMUM_BLKSZ is 64, so leaving
      * 24 bytes should cause the allocator to give out the entire piece. Take
@@ -77,10 +77,10 @@ void test_minimum_span_allocation(void) {
     /* Here rest = 65152, want = 65080 and gross = 65136. gross leaves 16 bytes
      * at the end of sp, so we should get it all.
      */
-    struct block *b3 = alloc_block(gross, bp);
+    struct block *b3 = blkalloc(gross, bp);
     assert(bp == b3); /* We just got bp back */
-    assert(!block_is_free(bp));
-    assert(block_size(bp) + block_size(b1) + block_size(b2) + SPAN_HDR_PADSZ == sp->size);
+    assert(!blkisfree(bp));
+    assert(blksize(bp) + blksize(b1) + blksize(b2) + SPAN_HDR_PADSZ == sp->size);
     assert(!sp->free_list); /* All span is used, no more free blocks. */
 
     /* Clean up. */
@@ -171,7 +171,7 @@ void test_payload_from_block(void) {
     printf("==== test_payload_from_block ====\n");
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
-    struct block *bp = find_block(gross);
+    struct block *bp = blkfind(gross);
 
     char *p = payload_from_block(bp);
 
@@ -185,7 +185,7 @@ void test_block_from_payload(void) {
     printf("==== test_block_from_payload ====\n");
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
-    struct block *bp = find_block(gross);
+    struct block *bp = blkfind(gross);
     char *p = payload_from_block(bp);
 
     struct block *bq = block_from_payload(p);
@@ -203,11 +203,11 @@ void test_free_single_block(void) {
     assert(sp && sp->size == MINIMUM_ALLOCATION);
     assert(base == sp);
 
-    struct block *bp = find_block(gross);
+    struct block *bp = blkfind(gross);
     assert(bp && bp->owner == sp);
     assert_ptr_aligned(bp, ALIGNMENT);
 
-    struct block *b1 = alloc_block(gross, bp);
+    struct block *b1 = blkalloc(gross, bp);
     assert_ptr_aligned(b1, ALIGNMENT);
 
     /* This is the payload pointer that malloc would give to a caller.
@@ -218,13 +218,13 @@ void test_free_single_block(void) {
      */
     struct block *b2 = block_from_payload(p);
     assert(b1 == b2);
-    assert(!block_is_free(b2));
+    assert(!blkisfree(b2));
     assert(b2->magic == MAGIC_SPENT);
 
     /* Act. */
     m_free(p);
 
-    assert(block_is_free(b2));
+    assert(blkisfree(b2));
     assert(b2->magic == MAGIC_BABY);
     assert(sp->free_list == b2);
     assert(b2->next && b2->next == bp);

@@ -30,8 +30,6 @@ struct block {
     struct block *prev;         /* prev free block */
     struct block *next;         /* next free block */
     struct span *owner;         /* span that holds ths block */
-    b32 free;                   /* is this chunk free */
-                                /* XXX use size lowest bits for this */
     u32 magic;                  /* 0xbebebebe */
 };
 
@@ -76,15 +74,15 @@ void assert_ptr_aligned(void *p, usz a);
 struct span *alloc_span(usz gross);
 void free_span(struct span *sp);
 
-struct block *find_block(usz gross);
-struct block *alloc_block(usz gross, struct block *bp);
+struct block *blkfind(usz gross);
+struct block *blkalloc(usz gross, struct block *bp);
 
-b32 block_is_free(struct block *bp);
-void block_set_free(struct block *bp);
-void block_set_used(struct block *bp);
+b32 blkisfree(struct block *bp);
+void blksetfree(struct block *bp);
+void blksetused(struct block *bp);
 
-usz block_size(struct block *bp);
-void block_set_size(struct block *bp, usz size);
+usz blksize(struct block *bp);
+void blksetsize(struct block *bp, usz size);
 
 struct block *block_from_payload(void *p);
 void *payload_from_block(struct block *bp);
