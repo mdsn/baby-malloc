@@ -115,12 +115,12 @@ struct span *alloc_span(usz gross) {
      * header.
      */
     sp->free_list = first_block(sp);
-    sp->free_list->size = spsz - (usz)SPAN_HDR_PADSZ;
     sp->free_list->prev = 0;
     sp->free_list->next = 0;
     sp->free_list->owner = sp;
-    sp->free_list->free = 1;
     sp->free_list->magic = MAGIC_BABY;
+    block_set_size(sp->free_list, spsz - (usz)SPAN_HDR_PADSZ);
+    block_set_free(sp->free_list);
 
     return sp;
 }
@@ -150,6 +150,33 @@ void sever_span(struct span *sp) {
 void free_span(struct span *sp) {
     sever_span(sp);
     munmap(sp, sp->size);
+}
+
+/* Block size and flags query and manipulation.
+ */
+b32 block_is_free(struct block *bp) {
+    return !(bp->size & BIT_IN_USE);
+}
+
+void block_set_free(struct block *bp) {
+    bp->size &= ~BIT_IN_USE;
+}
+
+void block_set_used(struct block *bp) {
+    bp->size |= BIT_IN_USE;
+}
+
+/* The size field also holds some bit flags in its least significant positions,
+ * so these need to be taken into account when calculating the real size.
+ */
+usz block_size(struct block *bp) {
+    usz mask = BIT_IN_USE | BIT_PREV_IN_USE; // FIXME factor out flag mask
+    return bp->size & ~mask;
+}
+
+void block_set_size(struct block *bp, usz size) {
+    usz mask = bp->size & (BIT_IN_USE | BIT_PREV_IN_USE);
+    bp->size = size | mask;
 }
 
 /* Take block bp off of its span's free list.
@@ -182,26 +209,28 @@ void sever_block(struct block *bp) {
  * with size gross.
  */
 struct block *split_block(usz gross, struct block *bp) {
-    assert(bp && bp->size > gross);
+    assert(bp && block_size(bp) > gross);
     struct span *sp = bp->owner;
 
     /* Compute new block position.
      */
-    byte *nb = (byte *)bp + bp->size - gross;
+    byte *nb = (byte *)bp + block_size(bp) - gross;
     assert((uptr)nb % ALIGNMENT == 0); /* nb is aligned */
     /* nb landed within the span */
     assert((uptr)sp < (uptr)nb && (uptr)nb < ((uptr)sp + sp->size));
 
-    bp->size -= gross;  /* Make free block smaller and leave it in the list. */
+    /* Make free block smaller and leave it in the list. */
+    usz bsz = block_size(bp) - gross;
+    block_set_size(bp, bsz);
 
     /* gross is already aligned, so it is safe to place a new header there.
      */
     bp = (struct block *)nb;
-    bp->size = gross;
     bp->owner = sp;
-    bp->free = 0;               /* Occupied. */
     bp->prev = bp->next = 0;    /* Not strictly necessary. */
     bp->magic = MAGIC_SPENT;    /* Take the poison. */
+    block_set_size(bp, gross);
+    block_set_used(bp);
     return bp;
 }
 
@@ -210,17 +239,17 @@ struct block *split_block(usz gross, struct block *bp) {
  * free block. The free block is reduced and left in the free list.
  */
 struct block *alloc_block(usz gross, struct block *bp) {
-    assert(bp && bp->free);
+    assert(bp && block_is_free(bp));
 
     /* bp points to a currently free block. Its size is bigger than or equal to
      * gross. If the remaining space after splitting is too small, take the
      * fragmentation and assign the entire block. Otherwise, split.
      */
-    if (bp->size - gross < MINIMUM_BLKSZ) {
+    if (block_size(bp) - gross < MINIMUM_BLKSZ) {
         sever_block(bp);
         /* No need to update bp's size. Its entire size is already correct.
          */
-        bp->free = 0;               /* Occupied. */
+        block_set_used(bp);
         bp->prev = bp->next = 0;    /* Not strictly necessary. */
         bp->magic = MAGIC_SPENT;    /* Take the poison. */
     } else {
@@ -241,7 +270,7 @@ struct block *find_block(usz gross) {
     while (sp) {
         struct block *bp = sp->free_list;
         while (bp) {
-            if (bp->size >= gross)
+            if (block_size(bp) >= gross)
                 return bp;
             bp = bp->next;
         }
@@ -329,11 +358,11 @@ void m_free(void *p) {
         return;
 
     struct block *bp = block_from_payload(p);
-    assert(!bp->free);
+    assert(!block_is_free(bp));
 
     struct span *sp = bp->owner;
 
-    bp->free = 1;
+    block_set_free(bp);
     bp->magic = MAGIC_BABY;
     bp->prev = 0;
     bp->next = sp->free_list;
@@ -343,5 +372,5 @@ void m_free(void *p) {
 
     /* Poison the payload for visibility.
      */
-    memset(p, 0xae, bp->size - BLOCK_HDR_PADSZ);
+    memset(p, 0xae, block_size(bp) - BLOCK_HDR_PADSZ);
 }

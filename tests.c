@@ -55,17 +55,17 @@ void test_minimum_span_allocation(void) {
     assert_aligned(sp->size, pagesize);
 
     struct block *bp = find_block(gross);
-    assert(bp->owner == sp);
+    assert(bp && bp->owner == sp);
 
     struct block *b1 = alloc_block(gross, bp);
-    assert(bp->size + b1->size + SPAN_HDR_PADSZ == sp->size);
-    assert(bp->free && !b1->free);
+    assert(block_size(bp) + block_size(b1) + SPAN_HDR_PADSZ == sp->size);
+    assert(block_is_free(bp) && !block_is_free(b1));
 
     struct block *b2 = alloc_block(gross, bp);
-    assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
-    assert(bp->free && !b2->free);
+    assert(block_size(bp) + block_size(b1) + block_size(b2) + SPAN_HDR_PADSZ == sp->size);
+    assert(block_is_free(bp) && !block_is_free(b2));
 
-    usz used = b1->size + b2->size;
+    usz used = block_size(b1) + block_size(b2);
     usz rest = sp->size - SPAN_HDR_PADSZ - used;
     /* Request using up almost all free space. MINIMUM_BLKSZ is 64, so leaving
      * 24 bytes should cause the allocator to give out the entire piece. Take
@@ -79,8 +79,8 @@ void test_minimum_span_allocation(void) {
      */
     struct block *b3 = alloc_block(gross, bp);
     assert(bp == b3); /* We just got bp back */
-    assert(!bp->free);
-    assert(bp->size + b1->size + b2->size + SPAN_HDR_PADSZ == sp->size);
+    assert(!block_is_free(bp));
+    assert(block_size(bp) + block_size(b1) + block_size(b2) + SPAN_HDR_PADSZ == sp->size);
     assert(!sp->free_list); /* All span is used, no more free blocks. */
 
     /* Clean up. */
@@ -218,13 +218,13 @@ void test_free_single_block(void) {
      */
     struct block *b2 = block_from_payload(p);
     assert(b1 == b2);
-    assert(!b2->free);
+    assert(!block_is_free(b2));
     assert(b2->magic == MAGIC_SPENT);
 
     /* Act. */
     m_free(p);
 
-    assert(b2->free);
+    assert(block_is_free(b2));
     assert(b2->magic == MAGIC_BABY);
     assert(sp->free_list == b2);
     assert(b2->next && b2->next == bp);

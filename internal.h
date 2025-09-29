@@ -35,6 +35,15 @@ struct block {
     u32 magic;                  /* 0xbebebebe */
 };
 
+/* The block size is a multiple of ALIGNMENT = 16, so its binary representation
+ * always has the 4 least significant bits set to 0. These can be used to pack
+ * booleans that would otherwise consume a full word.
+ */
+enum {
+    BIT_IN_USE = 1,
+    BIT_PREV_IN_USE = 2,
+};
+
 /* Precomputed sizes of the headers and their padding, to be able to hop back
  * to the header from the pointer given by the caller to free().
  */
@@ -69,6 +78,13 @@ void free_span(struct span *sp);
 
 struct block *find_block(usz gross);
 struct block *alloc_block(usz gross, struct block *bp);
+
+b32 block_is_free(struct block *bp);
+void block_set_free(struct block *bp);
+void block_set_used(struct block *bp);
+
+usz block_size(struct block *bp);
+void block_set_size(struct block *bp, usz size);
 
 struct block *block_from_payload(void *p);
 void *payload_from_block(struct block *bp);
