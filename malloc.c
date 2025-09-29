@@ -152,33 +152,6 @@ void free_span(struct span *sp) {
     munmap(sp, sp->size);
 }
 
-/* Block size and flags query and manipulation.
- */
-b32 blkisfree(struct block *bp) {
-    return !(bp->size & BIT_IN_USE);
-}
-
-void blksetfree(struct block *bp) {
-    bp->size &= ~BIT_IN_USE;
-}
-
-void blksetused(struct block *bp) {
-    bp->size |= BIT_IN_USE;
-}
-
-/* The size field also holds some bit flags in its least significant positions,
- * so these need to be taken into account when calculating the real size.
- */
-usz blksize(struct block *bp) {
-    usz mask = BIT_IN_USE | BIT_PREV_IN_USE; // FIXME factor out flag mask
-    return bp->size & ~mask;
-}
-
-void blksetsize(struct block *bp, usz size) {
-    usz mask = bp->size & (BIT_IN_USE | BIT_PREV_IN_USE);
-    bp->size = size | mask;
-}
-
 /* Take block bp off of its span's free list.
  */
 void sever_block(struct block *bp) {

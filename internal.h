@@ -77,12 +77,22 @@ void free_span(struct span *sp);
 struct block *blkfind(usz gross);
 struct block *blkalloc(usz gross, struct block *bp);
 
-b32 blkisfree(struct block *bp);
-void blksetfree(struct block *bp);
-void blksetused(struct block *bp);
+static inline b32 blkisfree(struct block *bp) { return !(bp->size & BIT_IN_USE); }
+static inline void blksetfree(struct block *bp) { bp->size &= ~BIT_IN_USE; }
+static inline void blksetused(struct block *bp) { bp->size |= BIT_IN_USE; }
 
-usz blksize(struct block *bp);
-void blksetsize(struct block *bp, usz size);
+/* The size field also holds some bit flags in its least significant positions,
+ * so these need to be taken into account when calculating the real size.
+ */
+static inline usz blksize(struct block *bp) {
+    usz mask = BIT_IN_USE | BIT_PREV_IN_USE; // FIXME factor out flag mask
+    return bp->size & ~mask;
+}
+
+static inline void blksetsize(struct block *bp, usz size) {
+    usz mask = bp->size & (BIT_IN_USE | BIT_PREV_IN_USE);
+    bp->size = size | mask;
+}
 
 struct block *block_from_payload(void *p);
 void *payload_from_block(struct block *bp);
