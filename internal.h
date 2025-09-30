@@ -51,6 +51,12 @@ enum {
     BLOCK_HDR_PADSZ = ALIGN_UP(sizeof(struct block), ALIGNMENT),
 };
 
+/* Byte used in debugging to spot a freed block.
+ */
+enum {
+    POISON_BYTE = 0xae,
+};
+
 /* If this assert fails the compiler will say something like "error:
  * 'static_assert_span_hdr_aligned' declared as an array with a negative size"
  */
@@ -75,8 +81,9 @@ void assert_ptr_aligned(void *p, usz a);
 struct span *alloc_span(usz gross);
 void free_span(struct span *sp);
 
-struct block *blkfind(usz gross);
 struct block *blkalloc(usz gross, struct block *bp);
+void blkfree(struct block *bp);
+struct block *blkfind(usz gross);
 struct block *blknextadj(struct block *bp);
 
 static inline b32 blkisfree(struct block *bp) {

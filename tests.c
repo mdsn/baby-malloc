@@ -258,5 +258,19 @@ void test_blknextadj(void) {
     assert(blknextadj(b2) == b1);
     assert(blknextadj(b1) == 0);
 
+    /* Put b2 at the front of the free list. This should not change the truth
+     * of the assertions.
+     */
+    blkfree(b2);
+
+    assert(sp->free_list == b2);
+    assert(b2->next == bp);
+    assert(bp->prev == b2);
+
+    assert(blknextadj(bp) == b3);
+    assert(blknextadj(b3) == b2);
+    assert(blknextadj(b2) == b1);
+    assert(blknextadj(b1) == 0);
+
     free_span(sp);
 }

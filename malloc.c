@@ -234,6 +234,20 @@ struct block *blkalloc(usz gross, struct block *bp) {
     return bp;
 }
 
+/* Return a block to its span's free list.
+ */
+void blkfree(struct block *bp) {
+    struct span *sp = bp->owner;
+
+    blksetfree(bp);
+    bp->magic = MAGIC_BABY;
+    bp->prev = 0;
+    bp->next = sp->free_list;
+    sp->free_list = bp;
+    if (bp->next)
+        bp->next->prev = bp;
+}
+
 /* Traverse the free list of each span to find a free block big enough to serve
  * a request. The given size is the gross size--enough to hold the header and
  * the memory.
@@ -351,18 +365,9 @@ void m_free(void *p) {
 
     struct block *bp = block_from_payload(p);
     assert(!blkisfree(bp));
+    blkfree(bp);
 
-    struct span *sp = bp->owner;
-
-    blksetfree(bp);
-    bp->magic = MAGIC_BABY;
-    bp->prev = 0;
-    bp->next = sp->free_list;
-    sp->free_list = bp;
-    if (bp->next)
-        bp->next->prev = bp;
-
-    /* Poison the payload for visibility.
+    /* Poison the block for visibility.
      */
-    memset(p, 0xae, blksize(bp) - BLOCK_HDR_PADSZ);
+    memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ);
 }
