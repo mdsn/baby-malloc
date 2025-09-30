@@ -77,12 +77,22 @@ void free_span(struct span *sp);
 
 struct block *blkfind(usz gross);
 struct block *blkalloc(usz gross, struct block *bp);
+struct block *blknextadj(struct block *bp);
 
 static inline b32 blkisfree(struct block *bp) {
     return !(bp->size & BIT_IN_USE);
 }
 static inline void blksetfree(struct block *bp) { bp->size &= ~BIT_IN_USE; }
 static inline void blksetused(struct block *bp) { bp->size |= BIT_IN_USE; }
+static inline b32 blkisprevfree(struct block *bp) {
+    return !(bp->size & BIT_PREV_IN_USE);
+}
+static inline void blksetprevfree(struct block *bp) {
+    bp->size &= ~BIT_PREV_IN_USE;
+}
+static inline void blksetprevused(struct block *bp) {
+    bp->size |= BIT_PREV_IN_USE;
+}
 static inline usz blksize(struct block *bp) { return bp->size & ~BLK_MASK; }
 static inline void blksetsize(struct block *bp, usz size) {
     bp->size = size | (bp->size & BLK_MASK);

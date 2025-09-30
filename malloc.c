@@ -252,6 +252,25 @@ struct block *blkfind(usz gross) {
     return 0;
 }
 
+/* Compute a pointer to the block physically next to bp. If that block is in
+ * use, it will not be bp->next. If bp is the last block in its span, return
+ * 0.
+ */
+struct block *blknextadj(struct block *bp) {
+    struct span *sp = bp->owner;
+    uptr next = (uptr)bp + blksize(bp);
+
+    /* Header and payload must be aligned for that to work.
+     */
+    assert(next % ALIGNMENT == 0);
+
+    /* The final block is given the last few bytes in the span.
+     */
+    if (next >= (uptr)sp + sp->size)
+        return 0;
+    return (struct block *)next;
+}
+
 /* Calculate the gross size needed to serve a user request for `size` bytes.
  * The gross size includes the block header and its padding, the requested
  * memory, and padding after the memory to fill to the next ALIGNMENT boundary

@@ -15,6 +15,7 @@ void test_free_only_span(void);
 void test_free_single_block(void);
 void test_payload_from_block(void);
 void test_block_from_payload(void);
+void test_blknextadj(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -36,6 +37,7 @@ int main(void) {
     test_payload_from_block();
     test_block_from_payload();
     test_alloc_multiple_spans();
+    test_blknextadj();
 
     return 0;
 }
@@ -231,6 +233,30 @@ void test_free_single_block(void) {
     assert(bp->prev && bp->prev == b2);
     assert(!bp->next);
     assert(!b2->prev);
+
+    free_span(sp);
+}
+
+/* Verify that the next block in the span can be found regardless of its
+ * presence in the free list.
+ */
+void test_blknextadj(void) {
+    printf("==== test_blknextadj ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    struct block *bp = blkfind(gross);
+    struct block *b1 = blkalloc(gross, bp);
+    struct block *b2 = blkalloc(gross, bp);
+    struct block *b3 = blkalloc(gross, bp);
+
+    /* Now bp is in the free list, with b3, b2 and b1 immediately after it, in
+     * use and in that order.
+     */
+    assert(blknextadj(bp) == b3);
+    assert(blknextadj(b3) == b2);
+    assert(blknextadj(b2) == b1);
+    assert(blknextadj(b1) == 0);
 
     free_span(sp);
 }
