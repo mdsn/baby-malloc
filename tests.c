@@ -16,6 +16,7 @@ void test_free_single_block(void);
 void test_payload_from_block(void);
 void test_block_from_payload(void);
 void test_blknextadj(void);
+void test_blkfoot(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -38,6 +39,7 @@ int main(void) {
     test_block_from_payload();
     test_alloc_multiple_spans();
     test_blknextadj();
+    test_blkfoot();
 
     return 0;
 }
@@ -271,6 +273,32 @@ void test_blknextadj(void) {
     assert(blknextadj(b3) == b2);
     assert(blknextadj(b2) == b1);
     assert(blknextadj(b1) == 0);
+
+    free_span(sp);
+}
+
+void test_blkfoot(void) {
+    printf("==== test_blktrail ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    struct block *bp = blkfind(gross);
+    struct block *b1 = blkalloc(gross, bp);
+    struct block *b2 = blkalloc(gross, bp);
+
+    /* The span contains: bp (free), b2 (used), b1 (used). */
+
+    /* The foot of bp is its last usize--it should be up against b2's header.
+     */
+    usz *bpfoot = blkfoot(bp);
+    struct block *adjbp = (struct block *)((uptr)bpfoot + sizeof(usz));
+    assert(adjbp == b2);
+
+    /* Get to b2 foot from b1 header.
+     */
+    usz *b2foot = blkfoot(b2);
+    usz *b1prev = (usz *)((uptr)b1 - sizeof(usz));
+    assert(b1prev == b2foot);
 
     free_span(sp);
 }

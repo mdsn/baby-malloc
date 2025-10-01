@@ -104,6 +104,9 @@ static inline usz blksize(struct block *bp) { return bp->size & ~BLK_MASK; }
 static inline void blksetsize(struct block *bp, usz size) {
     bp->size = size | (bp->size & BLK_MASK);
 }
+static inline usz *blkfoot(struct block *bp) {
+    return (usz *)((uptr)bp + blksize(bp) - sizeof(usz));
+}
 
 struct block *block_from_payload(void *p);
 void *payload_from_block(struct block *bp);
