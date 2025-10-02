@@ -181,7 +181,7 @@ void sever_block(struct block *bp) {
 /* Reduce the size of bp and create a new block at the end of its free space,
  * with size gross.
  */
-struct block *split_block(usz gross, struct block *bp) {
+struct block *blksplit(struct block *bp, usz gross) {
     assert(bp && blksize(bp) > gross);
     struct span *sp = bp->owner;
 
@@ -204,6 +204,8 @@ struct block *split_block(usz gross, struct block *bp) {
     bp->magic = MAGIC_SPENT;    /* Take the poison. */
     blksetsize(bp, gross);
     blksetused(bp);
+    blksetprevfree(bp);         /* Not strictly necessary? setsize clears
+                                   IN_USE bit */
     return bp;
 }
 
@@ -226,10 +228,16 @@ struct block *blkalloc(usz gross, struct block *bp) {
         bp->prev = bp->next = 0;    /* Not strictly necessary. */
         bp->magic = MAGIC_SPENT;    /* Take the poison. */
     } else {
-        /* split_block takes care of fully initializing the new block.
+        /* blksplit takes care of fully initializing the new block.
          */
-        bp = split_block(gross, bp);
+        bp = blksplit(bp, gross);
     }
+
+    /* Let the next block know its prev neighbor is in use.
+     */
+    struct block *bn = blknextadj(bp);
+    if (bn)
+        blksetprevused(bn);
 
     return bp;
 }
@@ -246,6 +254,12 @@ void blkfree(struct block *bp) {
     sp->free_list = bp;
     if (bp->next)
         bp->next->prev = bp;
+
+    /* Tell next physical block that prev is free.
+     */
+    struct block *bn = blknextadj(bp);
+    if (bn)
+        blksetprevfree(bn);
 }
 
 /* Traverse the free list of each span to find a free block big enough to serve

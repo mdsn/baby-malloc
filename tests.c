@@ -17,6 +17,8 @@ void test_payload_from_block(void);
 void test_block_from_payload(void);
 void test_blknextadj(void);
 void test_blkfoot(void);
+void test_blksplit(void);
+void test_isprevfree_bit(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -40,6 +42,8 @@ int main(void) {
     test_alloc_multiple_spans();
     test_blknextadj();
     test_blkfoot();
+    test_blksplit();
+    test_isprevfree_bit();
 
     return 0;
 }
@@ -64,10 +68,12 @@ void test_minimum_span_allocation(void) {
     struct block *b1 = blkalloc(gross, bp);
     assert(blksize(bp) + blksize(b1) + SPAN_HDR_PADSZ == sp->size);
     assert(blkisfree(bp) && !blkisfree(b1));
+    assert(blkisprevfree(b1)); /* Here prev(b1) == bp */
 
     struct block *b2 = blkalloc(gross, bp);
     assert(blksize(bp) + blksize(b1) + blksize(b2) + SPAN_HDR_PADSZ == sp->size);
     assert(blkisfree(bp) && !blkisfree(b2));
+    assert(blkisprevfree(b2) && !blkisprevfree(b1)); /* Now prev(b1) == b2 */
 
     usz used = blksize(b1) + blksize(b2);
     usz rest = sp->size - SPAN_HDR_PADSZ - used;
@@ -84,6 +90,7 @@ void test_minimum_span_allocation(void) {
     struct block *b3 = blkalloc(gross, bp);
     assert(bp == b3); /* We just got bp back */
     assert(!blkisfree(bp));
+    assert(!blkisprevfree(b2) && !blkisprevfree(b1));
     assert(blksize(bp) + blksize(b1) + blksize(b2) + SPAN_HDR_PADSZ == sp->size);
     assert(!sp->free_list); /* All span is used, no more free blocks. */
 
@@ -190,8 +197,8 @@ void test_block_from_payload(void) {
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
     struct block *bp = blkfind(gross);
-    char *p = payload_from_block(bp);
 
+    char *p = payload_from_block(bp);
     struct block *bq = block_from_payload(p);
 
     assert(bq && bq == bp);
@@ -218,8 +225,6 @@ void test_free_single_block(void) {
      */
     char *p = payload_from_block(b1);
 
-    /* TODO test block_from_payload() and its inverse separately.
-     */
     struct block *b2 = block_from_payload(p);
     assert(b1 == b2);
     assert(!blkisfree(b2));
@@ -299,6 +304,46 @@ void test_blkfoot(void) {
     usz *b2foot = blkfoot(b2);
     usz *b1prev = (usz *)((uptr)b1 - sizeof(usz));
     assert(b1prev == b2foot);
+
+    free_span(sp);
+}
+
+void test_blksplit(void) {
+    printf("==== test_blksplit ====\n");
+    usz gross = gross_size(4096);
+    struct span *sp = alloc_span(gross);
+    struct block *bp = blkfind(gross);
+
+    struct block *b1 = blksplit(bp, gross);
+
+    assert(b1 && blksize(b1) == gross);
+    assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ - gross);
+    assert(blkisprevfree(b1));
+
+    free_span(sp);
+}
+
+void test_isprevfree_bit(void) {
+    printf("==== test_isprevfree_bit ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    /* bp -> b3 -> b2 -> b1 */
+    struct block *bp = blkfind(gross);
+    struct block *b1 = blkalloc(gross, bp);
+    struct block *b2 = blkalloc(gross, bp);
+    struct block *b3 = blkalloc(gross, bp);
+
+    assert(bp && b1 && b2 && b3);
+    assert(blkisfree(bp));
+    assert(!blkisfree(b3) && blkisprevfree(b3));
+    assert(!blkisfree(b2) && !blkisprevfree(b2));
+    assert(!blkisfree(b1) && !blkisprevfree(b1));
+
+    blkfree(b2);
+
+    assert(blkisfree(b2) && !blkisprevfree(b2));
+    assert(!blkisfree(b1) && blkisprevfree(b1));
 
     free_span(sp);
 }

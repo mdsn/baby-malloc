@@ -85,6 +85,7 @@ struct block *blkalloc(usz gross, struct block *bp);
 void blkfree(struct block *bp);
 struct block *blkfind(usz gross);
 struct block *blknextadj(struct block *bp);
+struct block *blksplit(struct block *bp, usz gross);
 
 static inline b32 blkisfree(struct block *bp) {
     return !(bp->size & BIT_IN_USE);
