@@ -119,8 +119,10 @@ struct span *alloc_span(usz gross) {
     sp->free_list->next = 0;
     sp->free_list->owner = sp;
     sp->free_list->magic = MAGIC_BABY;
-    blksetsize(sp->free_list, spsz - (usz)SPAN_HDR_PADSZ);
+    usz size = spsz - (usz)SPAN_HDR_PADSZ;
+    blksetsize(sp->free_list, size);
     blksetfree(sp->free_list);
+    *blkfoot(sp->free_list) = size;
 
     return sp;
 }
@@ -195,6 +197,7 @@ struct block *blksplit(struct block *bp, usz gross) {
     /* Make free block smaller and leave it in the list. */
     usz bsz = blksize(bp) - gross;
     blksetsize(bp, bsz);
+    *blkfoot(bp) = bsz;
 
     /* gross is already aligned, so it is safe to place a new header there.
      */
@@ -248,6 +251,7 @@ void blkfree(struct block *bp) {
     struct span *sp = bp->owner;
 
     blksetfree(bp);
+    *blkfoot(bp) = blksize(bp);
     bp->magic = MAGIC_BABY;
     bp->prev = 0;
     bp->next = sp->free_list;
@@ -381,7 +385,7 @@ void m_free(void *p) {
     assert(!blkisfree(bp));
     blkfree(bp);
 
-    /* Poison the block for visibility.
+    /* Poison the block for visibility; skip the footer.
      */
-    memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ);
+    memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ - sizeof(usz));
 }

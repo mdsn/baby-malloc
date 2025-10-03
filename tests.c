@@ -64,6 +64,7 @@ void test_minimum_span_allocation(void) {
 
     struct block *bp = blkfind(gross);
     assert(bp && bp->owner == sp);
+    assert(*blkfoot(bp) == blksize(bp));
 
     struct block *b1 = blkalloc(gross, bp);
     assert(blksize(bp) + blksize(b1) + SPAN_HDR_PADSZ == sp->size);
@@ -216,9 +217,11 @@ void test_free_single_block(void) {
 
     struct block *bp = blkfind(gross);
     assert(bp && bp->owner == sp);
+    assert(*blkfoot(bp) == blksize(bp));
     assert_ptr_aligned(bp, ALIGNMENT);
 
     struct block *b1 = blkalloc(gross, bp);
+    assert(*blkfoot(bp) == blksize(bp)); /* bp shrunk */
     assert_ptr_aligned(b1, ALIGNMENT);
 
     /* This is the payload pointer that malloc would give to a caller.
@@ -240,6 +243,7 @@ void test_free_single_block(void) {
     assert(bp->prev && bp->prev == b2);
     assert(!bp->next);
     assert(!b2->prev);
+    assert(*blkfoot(b2) == blksize(b2));
 
     free_span(sp);
 }
@@ -318,6 +322,7 @@ void test_blksplit(void) {
 
     assert(b1 && blksize(b1) == gross);
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ - gross);
+    assert(*blkfoot(bp) == blksize(bp));
     assert(blkisprevfree(b1));
 
     free_span(sp);
