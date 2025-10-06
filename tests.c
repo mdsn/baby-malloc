@@ -20,6 +20,7 @@ void test_blkfoot(void);
 void test_blksplit(void);
 void test_isprevfree_bit(void);
 void test_blkprevfoot(void);
+void test_blkprevadj(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -46,6 +47,7 @@ int main(void) {
     test_blksplit();
     test_isprevfree_bit();
     test_blkprevfoot();
+    test_blkprevadj();
 
     return 0;
 }
@@ -372,6 +374,26 @@ void test_blkprevfoot(void) {
     assert(*blkprevfoot(b1) == *blkfoot(b2));
     assert(*blkprevfoot(b2) == blksize(bp));
     assert(*blkprevfoot(b2) == *blkfoot(bp));
+
+    free_span(sp);
+}
+
+void test_blkprevadj(void) {
+    printf("==== test_blkprevadj ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    /* bp -> b2 -> b1 */
+    struct block *bp = blkfind(gross);
+    struct block *b1 = blkalloc(gross, bp);
+    struct block *b2 = blkalloc(gross, bp);
+
+    blkfree(b1);
+    blkfree(b2);
+
+    assert(blkprevadj(b1) == b2);
+    assert(blkprevadj(b2) == bp);
+    assert(blkprevadj(bp) == 0);
 
     free_span(sp);
 }

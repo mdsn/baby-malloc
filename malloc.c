@@ -284,6 +284,25 @@ struct block *blkfind(usz gross) {
     return 0;
 }
 
+/* Compute a pointer to the (free) block physically before bp using its footer
+ * (hence the need for it to be free). If bp is the first block in the span,
+ * return 0.
+ */
+struct block *blkprevadj(struct block *bp) {
+    struct span *sp = bp->owner;
+    usz *ft = blkprevfoot(bp);
+
+    /* ft landed inside the span header. bp is the first block in the span.
+     */
+    if ((uptr)ft < (uptr)sp + SPAN_HDR_PADSZ)
+        return 0;
+
+    struct block *bq = (struct block *)((uptr)bp - *ft);
+    assert_ptr_aligned(bq, ALIGNMENT);
+
+    return bq;
+}
+
 /* Compute a pointer to the block physically next to bp. If that block is in
  * use, it will not be bp->next. If bp is the last block in its span, return
  * 0.
@@ -294,7 +313,7 @@ struct block *blknextadj(struct block *bp) {
 
     /* Header and payload must be aligned for that to work.
      */
-    assert(next % ALIGNMENT == 0);
+    assert_aligned(next, ALIGNMENT);
 
     /* The final block is given the last few bytes in the span.
      */

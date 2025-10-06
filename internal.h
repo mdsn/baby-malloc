@@ -84,6 +84,7 @@ void free_span(struct span *sp);
 struct block *blkalloc(usz gross, struct block *bp);
 void blkfree(struct block *bp);
 struct block *blkfind(usz gross);
+struct block *blkprevadj(struct block *bp);
 struct block *blknextadj(struct block *bp);
 struct block *blksplit(struct block *bp, usz gross);
 
