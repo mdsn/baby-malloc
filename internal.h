@@ -101,12 +101,12 @@ static inline void blksetprevfree(struct block *bp) {
 static inline void blksetprevused(struct block *bp) {
     bp->size |= BIT_PREV_IN_USE;
 }
-static inline usz blkprevsize(struct block *bp) {
-    return *(usz *)((uptr)bp - sizeof(usz));
-}
 static inline usz blksize(struct block *bp) { return bp->size & ~BLK_MASK; }
 static inline void blksetsize(struct block *bp, usz size) {
     bp->size = size | (bp->size & BLK_MASK);
+}
+static inline usz *blkprevfoot(struct block *bp) {
+    return (usz *)((uptr)bp - sizeof(usz));
 }
 static inline usz *blkfoot(struct block *bp) {
     return (usz *)((uptr)bp + blksize(bp) - sizeof(usz));
