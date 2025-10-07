@@ -81,6 +81,8 @@ void assert_ptr_aligned(void *p, usz a);
 struct span *alloc_span(usz gross);
 void free_span(struct span *sp);
 
+void coalesce(struct block *bp, struct block *bq);
+
 struct block *blkalloc(usz gross, struct block *bp);
 void blkfree(struct block *bp);
 struct block *blkfind(usz gross);

@@ -21,6 +21,7 @@ void test_blksplit(void);
 void test_isprevfree_bit(void);
 void test_blkprevfoot(void);
 void test_blkprevadj(void);
+void test_coalesce(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -48,6 +49,7 @@ int main(void) {
     test_isprevfree_bit();
     test_blkprevfoot();
     test_blkprevadj();
+    test_coalesce();
 
     return 0;
 }
@@ -237,17 +239,12 @@ void test_free_single_block(void) {
     assert(!blkisfree(b2));
     assert(b2->magic == MAGIC_SPENT);
 
-    /* Act. */
+    /* This coalesces b1 into bp. */
     m_free(p);
 
-    assert(blkisfree(b2));
-    assert(b2->magic == MAGIC_BABY);
-    assert(sp->free_list == b2);
-    assert(b2->next && b2->next == bp);
-    assert(bp->prev && bp->prev == b2);
+    assert(sp->free_list == bp);
     assert(!bp->next);
-    assert(!b2->prev);
-    assert(*blkfoot(b2) == blksize(b2));
+    assert(*blkfoot(bp) == bp->owner->size - SPAN_HDR_PADSZ);
 
     free_span(sp);
 }
@@ -394,6 +391,33 @@ void test_blkprevadj(void) {
     assert(blkprevadj(b1) == b2);
     assert(blkprevadj(b2) == bp);
     assert(blkprevadj(bp) == 0);
+
+    free_span(sp);
+}
+
+void test_coalesce(void) {
+    printf("==== test_coalesce ====\n");
+    usz gross = gross_size(64);
+    struct span *sp = alloc_span(gross);
+
+    /* bp -> b3 -> b2 -> b1 */
+    struct block *bp = blkfind(gross);
+    struct block *b1 = blkalloc(gross, bp);
+    struct block *b2 = blkalloc(gross, bp);
+    struct block *b3 = blkalloc(gross, bp);
+
+    blkfree(b3); /* Free list: sp -> b3 -> bp
+                  * NB. Physically the blocks are still laid out the same. */
+    blkfree(b1); /* Free list: sp -> b1 -> b3 -> bp */
+    blkfree(b2); /* Should coalesce with b3 and b1. */
+
+    /* FIXME bp->next is (correctly) 0, but its size is 336 bytes short of the
+     * entire span. Hypothesis: b2 got coalesced with its neighbors, but then
+     * the resulting block also needs further coalescing (in this case, with
+     * bp).
+     */
+    assert(sp->free_list == bp && !bp->next);
+    assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
 
     free_span(sp);
 }

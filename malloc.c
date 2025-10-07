@@ -343,6 +343,25 @@ void *payload_from_block(struct block *bp) {
     return (char *)bp + BLOCK_HDR_PADSZ;
 }
 
+/* Join blocks by extending bp to cover bq and removing bq from the free list.
+ * Bq must be the next adjacent block after bp, and be free. Importantly, bq
+ * is no longer a valid block pointer after calling coalesce(), since it points
+ * into the middle of a block.
+ */
+void coalesce(struct block *bp, struct block *bq) {
+    assert(bp && bq);
+    assert(blknextadj(bp) == bq);
+    assert(blkisfree(bp) && blkisfree(bq));
+
+    /* Remove bq from the free list to ensure it's no longer allocated.
+     */
+    sever_block(bq);
+
+    usz bsz = blksize(bp) + blksize(bq);
+    blksetsize(bp, bsz);
+    *blkfoot(bp) = bsz;
+}
+
 /* Serve a request for memory for the caller. Search for an already mmap'd span
  * with enough available space for the new block: its header, and the number of
  * bytes requested by the user. If one does not exist, a new span is mmap'd and
@@ -403,6 +422,19 @@ void m_free(void *p) {
     struct block *bp = block_from_payload(p);
     assert(!blkisfree(bp));
     blkfree(bp);
+
+    /* Coalesce in both directions.
+     */
+    struct block *bq = blknextadj(bp);
+    if (bq && blkisfree(bq))
+        coalesce(bp, bq);
+
+    bq = blkprevadj(bp);
+    if(bq && blkisfree(bq)) {
+        coalesce(bq, bp);
+        bp = bq; /* Make bp point to a valid free block again. */
+        p = payload_from_block(bp); /* Same thing for p. */
+    }
 
     /* Poison the block for visibility; skip the footer.
      */
