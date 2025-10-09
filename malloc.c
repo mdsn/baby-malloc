@@ -429,11 +429,12 @@ void m_free(void *p) {
     if (bq && blkisfree(bq))
         coalesce(bp, bq);
 
-    bq = blkprevadj(bp);
-    if(bq && blkisfree(bq)) {
-        coalesce(bq, bp);
-        bp = bq; /* Make bp point to a valid free block again. */
-        p = payload_from_block(bp); /* Same thing for p. */
+    if (blkisprevfree(bp)) {
+        if ((bq = blkprevadj(bp))) {
+            coalesce(bq, bp);
+            bp = bq; /* Make bp point to a valid free block again. */
+            p = payload_from_block(bp); /* Same thing for p. */
+        }
     }
 
     /* Poison the block for visibility; skip the footer.

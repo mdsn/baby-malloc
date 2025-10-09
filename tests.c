@@ -406,16 +406,32 @@ void test_coalesce(void) {
     struct block *b2 = blkalloc(gross, bp);
     struct block *b3 = blkalloc(gross, bp);
 
-    blkfree(b3); /* Free list: sp -> b3 -> bp
-                  * NB. Physically the blocks are still laid out the same. */
-    blkfree(b1); /* Free list: sp -> b1 -> b3 -> bp */
-    blkfree(b2); /* Should coalesce with b3 and b1. */
+    usz bpsz = blksize(bp);
 
-    /* FIXME bp->next is (correctly) 0, but its size is 336 bytes short of the
-     * entire span. Hypothesis: b2 got coalesced with its neighbors, but then
-     * the resulting block also needs further coalescing (in this case, with
-     * bp).
+    void *p1 = payload_from_block(b1);
+    void *p2 = payload_from_block(b2);
+    void *p3 = payload_from_block(b3);
+
+    /* Should coalesce b3 and bp by extending bp (as prevadj of b3).
+     * Free list after free: sp -> bp
+     * Physical list: bp -> b2 -> b1
      */
+    m_free(p3);
+    assert(sp->free_list == bp);
+    assert(blksize(bp) == bpsz + gross);
+    assert(bp->next == 0);
+
+    /* Does not coalesce -- b1 is last and b2 is in use.
+     * Free list after free: sp -> b1 -> bp
+     * Physical list: bp -> b2 -> b1
+     */
+    m_free(p1);
+    assert(sp->free_list == b1);
+    assert(b1->next == bp && bp->next == 0);
+
+    /* Should coalesce everything back into bp.
+     */
+    m_free(p2);
     assert(sp->free_list == bp && !bp->next);
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
 
