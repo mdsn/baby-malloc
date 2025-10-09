@@ -435,5 +435,43 @@ void test_coalesce(void) {
     assert(sp->free_list == bp && !bp->next);
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
 
+    /* A different freeing order.
+     * Physical layout: bp -> b4 -> b3 -> b2 -> b1.
+     * Free b2, then b4 (coalesce with bp), then b1 (coalesce with b2), then b3
+     * (coalesce everything).
+     */
+    b1 = blkalloc(gross, bp);
+    b2 = blkalloc(gross, bp);
+    b3 = blkalloc(gross, bp);
+    struct block *b4 = blkalloc(gross, bp);
+
+    bpsz = blksize(bp);
+
+    m_free(payload_from_block(b2));
+    assert(blkisfree(b2) && blksize(b2) == *blkfoot(b2));
+    assert(sp->free_list == b2 && b2->next == bp && !bp->next);
+
+    m_free(payload_from_block(b4));
+    /* No change to the free list */
+    assert(sp->free_list == b2 && b2->next == bp && !bp->next);
+    assert(blksize(bp) == bpsz + gross);
+    assert(blksize(bp) == *blkfoot(bp));
+
+    m_free(payload_from_block(b1));
+    /* No change to the free list, but b2 changed */
+    assert(sp->free_list == b2 && b2->next == bp && !bp->next);
+    assert(blksize(b2) == 2 * gross);
+    assert(blksize(b2) == *blkfoot(b2));
+
+    /* Physical layout: bp (free) -> b3 (used) -> b2.
+     * Free list: sp -> b2 -> bp
+     */
+
+    m_free(payload_from_block(b3));
+    assert(sp->free_list == bp && !bp->next);
+    assert(blksize(bp) == bpsz + 4 * gross);
+    assert(blksize(bp) == *blkfoot(bp));
+    assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
+
     free_span(sp);
 }

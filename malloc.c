@@ -289,6 +289,8 @@ struct block *blkfind(usz gross) {
  * return 0.
  */
 struct block *blkprevadj(struct block *bp) {
+    assert(blkisprevfree(bp));
+
     struct span *sp = bp->owner;
     usz *ft = blkprevfoot(bp);
 
