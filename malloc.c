@@ -450,6 +450,8 @@ void m_free(void *p) {
 void *m_calloc(usz n, usz s) {
     s *= n;
     void *p = m_malloc(s);
+    if (!p)
+        return 0;
     struct block *bp = block_from_payload(p);
     memset(p, 0, blksize(bp) - BLOCK_HDR_PADSZ);
     return p;
