@@ -31,6 +31,7 @@ struct block;
 /* Public API, prefixed with m_ for now.
  */
 void *m_malloc(size_t n);
+void *m_calloc(size_t n, size_t s);
 void m_free(void *p);
 
 #endif

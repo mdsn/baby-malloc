@@ -443,3 +443,14 @@ void m_free(void *p) {
      */
     memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ - sizeof(usz));
 }
+
+/* Allocate enough contiguous space for n elements of size s bytes each. The
+ * allocated memory is zeroed out.
+ */
+void *m_calloc(usz n, usz s) {
+    s *= n;
+    void *p = m_malloc(s);
+    struct block *bp = block_from_payload(p);
+    memset(p, 0, blksize(bp) - BLOCK_HDR_PADSZ);
+    return p;
+}

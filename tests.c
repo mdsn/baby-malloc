@@ -22,6 +22,7 @@ void test_isprevfree_bit(void);
 void test_blkprevfoot(void);
 void test_blkprevadj(void);
 void test_coalesce(void);
+void test_calloc(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -50,6 +51,7 @@ int main(void) {
     test_blkprevfoot();
     test_blkprevadj();
     test_coalesce();
+    test_calloc();
 
     return 0;
 }
@@ -472,6 +474,28 @@ void test_coalesce(void) {
     assert(blksize(bp) == bpsz + 4 * gross);
     assert(blksize(bp) == *blkfoot(bp));
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
+
+    free_span(sp);
+}
+
+void test_calloc(void) {
+    printf("==== test_calloc ====\n");
+    usz N = 1024 * 1024;
+    usz SZ = sizeof(i64);
+
+    i64 *p = m_calloc(N, SZ);
+
+    assert(p);
+    assert_ptr_aligned(p, ALIGNMENT);
+
+    struct block *bp = block_from_payload(p);
+    struct span *sp = bp->owner;
+
+    assert_aligned(blksize(bp), ALIGNMENT);
+    assert_aligned(sp->size, pagesize);
+
+    assert(blksize(bp) >= N * SZ);
+    assert(!p[0] && !p[N - 1] && !p[1234] && !p[123456]);
 
     free_span(sp);
 }
