@@ -34,7 +34,7 @@ int main(void) {
     printf("span_hdr_padsz = %d\n", SPAN_HDR_PADSZ);
     printf("block_hdr_padsz = %d\n", BLOCK_HDR_PADSZ);
     printf("alignment = %d\n", ALIGNMENT);
-    printf("minimum_allocation = %d\n", MINIMUM_ALLOCATION);
+    printf("minimum_allocation = %d\n", MIN_MMAPSZ);
     printf("align_up(128, 16) = %d\n", ALIGN_UP(128, 16));
 
     test_minimum_span_allocation();
@@ -56,7 +56,7 @@ int main(void) {
     return 0;
 }
 
-/* Get a span for a 128 bytes request. MINIMUM_ALLOCATION (64k) gets allocated.
+/* Get a span for a 128 bytes request. MIN_MMAPSZ (64k) gets allocated.
  * Take two blocks to serve 128 byte requests, and one large request for all the
  * rest.
  */
@@ -86,7 +86,7 @@ void test_minimum_span_allocation(void) {
 
     usz used = blksize(b1) + blksize(b2);
     usz rest = sp->size - SPAN_HDR_PADSZ - used;
-    /* Request using up almost all free space. MINIMUM_BLKSZ is 64, so leaving
+    /* Request using up almost all free space. MIN_BLKSZ is 64, so leaving
      * 24 bytes should cause the allocator to give out the entire piece. Take
      * BLOCK_HDR_PADSZ to account for gross_size() adding that to its result.
      */
@@ -125,7 +125,7 @@ void test_free_only_span(void) {
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
 
-    assert(sp && sp->size == MINIMUM_ALLOCATION);
+    assert(sp && sp->size == MIN_MMAPSZ);
     /* sp is the only span on the global list. This actually depends on the
      * other tests cleaning up after themselves.
      */
@@ -220,7 +220,7 @@ void test_free_single_block(void) {
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
 
-    assert(sp && sp->size == MINIMUM_ALLOCATION);
+    assert(sp && sp->size == MIN_MMAPSZ);
     assert(base == sp);
 
     struct block *bp = blkfind(gross);

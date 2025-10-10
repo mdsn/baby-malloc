@@ -69,7 +69,7 @@ STATIC_ASSERT((SPAN_HDR_PADSZ % ALIGNMENT) == 0, span_header_size);
 STATIC_ASSERT((BLOCK_HDR_PADSZ % ALIGNMENT) == 0, block_header_size);
 STATIC_ASSERT(SPAN_HDR_PADSZ == 32, span_size_drifted);
 STATIC_ASSERT(BLOCK_HDR_PADSZ == 48, block_size_drifted);
-STATIC_ASSERT((MINIMUM_ALLOCATION & (MINIMUM_ALLOCATION - 1)) == 0, min_alloc_power_of_two);
+STATIC_ASSERT((MIN_MMAPSZ & (MIN_MMAPSZ - 1)) == 0, min_mmapsz_power_of_two);
 
 /* Internal helper functions used by malloc.c and unit tests.
  */

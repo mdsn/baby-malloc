@@ -87,14 +87,14 @@ int pagesize = 0;
  * request to a page boundary as well, to get that extra memory to ourselves.
  *
  * To minimize system calls for small allocations, a minimum allocation size of
- * MINIMUM_ALLOCATION is requested.
+ * MIN_MMAPSZ is requested.
  */
 usz usz_max(usz a, usz b) {
     return a > b ? a : b;
 }
 
 struct span *alloc_span(usz gross) {
-    usz spsz = usz_max(gross, MINIMUM_ALLOCATION);
+    usz spsz = usz_max(gross, MIN_MMAPSZ);
     spsz = ALIGN_UP(spsz, pagesize);
 
     /* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
@@ -223,7 +223,7 @@ struct block *blkalloc(usz gross, struct block *bp) {
      * gross. If the remaining space after splitting is too small, take the
      * fragmentation and assign the entire block. Otherwise, split.
      */
-    if (blksize(bp) - gross < MINIMUM_BLKSZ) {
+    if (blksize(bp) - gross < MIN_BLKSZ) {
         sever_block(bp);
         /* No need to update bp's size. Its entire size is already correct.
          */

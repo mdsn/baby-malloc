@@ -14,9 +14,9 @@
 
 enum {
     ALIGNMENT = 16,
-    MINIMUM_BLKSZ = 64,     /* (?) This ought to at least be bigger than the
-                             * header. */
-    MINIMUM_ALLOCATION = 64 * 1024,
+    MIN_BLKSZ = 64,     /* (?) This ought to at least be bigger than the
+                         * header. */
+    MIN_MMAPSZ = 64 * 1024,
 };
 
 /* If a is a power of 2, round n up to the next multiple of a.
