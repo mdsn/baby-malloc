@@ -55,13 +55,6 @@ void *align_ptr(void *p) {
 }
 */
 
-/* Get a pointer to the first block header after a span header, considering
- * padding.
- */
-struct block *spfirstblk(struct span *sp) {
-    return (struct block *)((char *)sp + SPAN_HDR_PADSZ);
-}
-
 /* The initial state, when no pages have been requested from the OS, is that
  * the global base pointer is NULL. When the first request comes, the initial
  * span is tracked by this pointer.
@@ -72,18 +65,22 @@ struct span *base = 0;
  */
 int pagesize = 0;
 
-/* mmap obtains memory in multiples of the page size, padding up the requested
- * size if necessary. Therefore it's in our best interest to round up the
- * request to a page boundary as well, to get that extra memory to ourselves.
- *
- * To minimize system calls for small allocations, a minimum allocation size of
- * MIN_MMAPSZ is requested.
+/* Get a pointer to the first block header after a span header, considering
+ * padding.
  */
-usz usz_max(usz a, usz b) {
-    return a > b ? a : b;
+struct block *spfirstblk(struct span *sp) {
+    return (struct block *)((char *)sp + SPAN_HDR_PADSZ);
 }
 
 struct span *alloc_span(usz gross) {
+    /* mmap obtains memory in multiples of the page size, padding up the
+     * requested size if necessary. Therefore it's in our best interest to
+     * round up the request to a page boundary as well, to get that extra
+     * memory to ourselves.
+     *
+     * To minimize system calls for small allocations, a minimum allocation
+     * size of MIN_MMAPSZ is requested.
+     */
     usz spsz = usz_max(gross, MIN_MMAPSZ);
     spsz = ALIGN_UP(spsz, pagesize);
 
@@ -138,15 +135,6 @@ int ptr_in_span(void *p, struct span *sp) {
     uptr usp = (uptr)sp;
     uptr up = (uptr) p;
     return usp <= up && up <= usp + sp->size;
-}
-
-/* Calculate the gross size needed to serve a user request for `size` bytes.
- * The gross size includes the block header and its padding, the requested
- * memory, and padding after the memory to fill to the next ALIGNMENT boundary
- * (so the next block header will also be aligned).
- */
-usz gross_size(usz size) {
-    return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT);
 }
 
 /* Take block bp off of its span's free list.

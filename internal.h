@@ -74,9 +74,13 @@ STATIC_ASSERT((MIN_MMAPSZ & (MIN_MMAPSZ - 1)) == 0, min_mmapsz_power_of_two);
 static inline void assert_aligned(usz x, usz a) { assert(x % a == 0); }
 static inline void assert_ptr_aligned(void *p, usz a) { assert((uptr)p % a == 0); }
 
-/* Internal helper functions used by malloc.c and unit tests.
+/* Calculate the gross size needed to serve a user request for `size` bytes.
+ * The gross size includes the block header and its padding, the requested
+ * memory, and padding after the memory to fill to the next ALIGNMENT boundary
+ * (so the next block header will also be aligned).
  */
-usz gross_size(usz size);
+static inline usz gross_size(usz size) { return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT); }
+static inline usz usz_max(usz a, usz b) { return a > b ? a : b; }
 
 void assert_aligned(usz x, usz a);
 void assert_ptr_aligned(void *p, usz a);
