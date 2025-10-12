@@ -100,7 +100,7 @@ struct span *spalloc(usz gross) {
 
     /* Place one all-spanning free block immediately after the span header. */
     usz size = spsz - (usz)SPAN_HDR_PADSZ;
-    sp->free_list = blkinit(spfirstblk(sp), sp, size);
+    sp->free_list = blkinitfree(spfirstblk(sp), sp, size);
     return sp;
 }
 
@@ -221,7 +221,7 @@ struct block *blkalloc(usz gross, struct block *bp) {
  */
 void blkfree(struct block *bp) {
     struct span *sp = bp->owner;
-    blkinit(bp, sp, blksize(bp));
+    blkinitfree(bp, sp, blksize(bp));
     blkprepend(bp);
 
     struct block *bn = blknextadj(bp);
@@ -229,8 +229,7 @@ void blkfree(struct block *bp) {
         blksetprevfree(bn);
 }
 
-/* Initialize a header at location p for a free block with the given size and
- * owner.
+/* Initialize a block header at location p with the given size and owner.
  */
 struct block *blkinit(void *p, struct span *sp, usz size) {
     assert(ptr_in_span(p, sp));
@@ -238,13 +237,20 @@ struct block *blkinit(void *p, struct span *sp, usz size) {
     assert(ptr_in_span((byte *)p + size, sp));
 
     struct block *bp = (struct block *)p;
-    blksetfree(bp);
     blksetsize(bp, size);
-    *blkfoot(bp) = size;
     bp->owner = sp;
-    bp->prev = 0;
-    bp->magic = MAGIC_BABY;
+    bp->next = bp->prev = 0;
+    return bp;
+}
 
+/* Initialize a header at location p for a free block with the given size and
+ * owner.
+ */
+struct block *blkinitfree(void *p, struct span *sp, usz size) {
+    struct block *bp = blkinit(p, sp, size);
+    bp->magic = MAGIC_BABY;
+    blksetfree(bp);
+    *blkfoot(bp) = size;
     return bp;
 }
 
@@ -489,7 +495,7 @@ void *realloc_truncate(struct block *bp, usz size) {
 
     byte *nb = (byte *)bp + gross;
     assert_ptr_aligned(nb, ALIGNMENT);
-    bp = blkinit(nb, sp, nsz);
+    bp = blkinitfree(nb, sp, nsz);
     blkprepend(bp);
     blksetprevused(bp);     /* The reduced block is still in use */
 
@@ -538,7 +544,7 @@ void *realloc_extend(struct block *bp, usz size) {
 
         byte *nb = (byte *)bp + gross;
         blksever(bq);
-        bq = blkinit(nb, sp, leftover);
+        bq = blkinitfree(nb, sp, leftover);
         blkprepend(bq);
         blksetprevused(bq);
 
