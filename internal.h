@@ -87,6 +87,8 @@ void coalesce(struct block *bp, struct block *bq);
 struct block *blkalloc(usz gross, struct block *bp);
 void blkfree(struct block *bp);
 struct block *blkinit(void *p, struct span *sp, usz size);
+struct block *blkinitused(void *p, struct span *sp, usz size);
+void blkprepend(struct block *bp);
 struct block *blkfind(usz gross);
 struct block *blkprevadj(struct block *bp);
 struct block *blknextadj(struct block *bp);

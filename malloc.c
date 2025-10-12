@@ -199,12 +199,7 @@ struct block *blksplit(struct block *bp, usz gross) {
 
     /* gross is already aligned, so it is safe to place a new header there.
      */
-    bp = (struct block *)nb;
-    bp->owner = sp;
-    bp->prev = bp->next = 0;    /* Not strictly necessary. */
-    bp->magic = MAGIC_SPENT;    /* Take the poison. */
-    blksetsize(bp, gross);
-    blksetused(bp);
+    bp = blkinitused(nb, sp, gross);
     blksetprevfree(bp);         /* Not strictly necessary? setsize clears
                                    IN_USE bit */
     return bp;
@@ -248,6 +243,7 @@ struct block *blkalloc(usz gross, struct block *bp) {
 void blkfree(struct block *bp) {
     struct span *sp = bp->owner;
     blkinit(bp, sp, blksize(bp));
+    blkprepend(bp);
 
     /* Tell next physical block that prev is free.
      */
@@ -257,7 +253,7 @@ void blkfree(struct block *bp) {
 }
 
 /* Initialize a header at location p for a free block with the given size and
- * owner, and prepend it to the span's free list.
+ * owner.
  */
 struct block *blkinit(void *p, struct span *sp, usz size) {
     assert(ptr_in_span(p, sp));
@@ -272,12 +268,28 @@ struct block *blkinit(void *p, struct span *sp, usz size) {
     bp->prev = 0;
     bp->magic = MAGIC_BABY;
 
+    return bp;
+}
+
+/* Initialize a header for an allocated block at location p, with the given
+ * size and owner.
+ */
+struct block *blkinitused(void *p, struct span *sp, usz size) {
+    struct block *bp = blkinit(p, sp, size);
+    blksetused(bp);
+    bp->magic = MAGIC_SPENT;
+    return bp;
+}
+
+/* Prepend free block bp to its owner span's free list.
+ */
+void blkprepend(struct block *bp) {
+    assert(bp && blkisfree(bp));
+    struct span *sp = bp->owner;
     bp->next = sp->free_list;
     sp->free_list = bp;
     if (bp->next)
         bp->next->prev = bp;
-
-    return bp;
 }
 
 /* Traverse the free list of each span to find a free block big enough to serve
@@ -527,6 +539,7 @@ void *m_realloc(void *p, usz size) {
         blksetsize(bp, gross);
 
         bp = blkinit(nb, sp, nsz);
+        blkprepend(bp);
         blksetprevused(bp);     /* The reduced block is still in use */
 
         /* Tell the next adjacent block about the new free block before it.
@@ -572,6 +585,7 @@ void *m_realloc(void *p, usz size) {
         byte *nb = (byte *)bp + gross;
         sever_block(bq);
         bq = blkinit(nb, sp, leftover);
+        blkprepend(bq);
         blksetprevused(bq);
 
         return p;
