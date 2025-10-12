@@ -513,7 +513,6 @@ void *realloc_extend(struct block *bp, usz size) {
     assert(blksize(bp) < gross);
 
     void *p = blkpayload(bp);
-    struct span *sp = bp->owner;
     struct block *bq = blknextadj(bp);
     if (bq && blkisfree(bq) && blksize(bq) >= gross) {
         /* Extend bp over bq. Once again, if the leftover space is big enough
@@ -540,7 +539,7 @@ void *realloc_extend(struct block *bp, usz size) {
 
         byte *nb = (byte *)bp + gross;
         blksever(bq);
-        bq = blkinitfree(nb, sp, leftover);
+        bq = blkinitfree(nb, bp->owner, leftover);
         blkprepend(bq);
         blksetprevused(bq);
 
