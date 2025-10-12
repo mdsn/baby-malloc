@@ -456,3 +456,132 @@ void *m_calloc(usz n, usz s) {
     memset(p, 0, blksize(bp) - BLOCK_HDR_PADSZ);
     return p;
 }
+
+/* Try to change the size of allocation p to s, and return p. If s is larger
+ * than the current allocation and there is enough contiguous space to extend
+ * the current allocation, the allocation is extended in place. Otherwise,
+ * realloc() creates a new allocation, copies all the bytes from the original
+ * allocation to the new one, and frees the old allocation. If p is NULL,
+ * realloc() just returns a pointer to a new allocation for s bytes, as if
+ * malloc(s) had been called. If p is not NULL and s is zero, a new
+ * minimum-sized allocation is created and the original allocation is freed.
+ *
+ * The returned allocation is not zeroed out.
+ */
+void *m_realloc(void *p, usz s) {
+    /* Scenarios:
+     * 1. There is no allocation (p == 0).
+     * 2. The payload is reduced to minimum payload size (p && s == 0).
+     * 3. The payload is reduced.
+     * 4. The payload is extended and there is adjacent space in the block.
+     * 5. The payload is extended but needs to be moved.
+     */
+    if (!p)
+        return m_malloc(s);
+
+    struct block *bp = block_from_payload(p);
+    struct span *sp = bp->owner;
+    assert(bp && sp);
+
+    usz gross = gross_size(s); /* gross_size considers padding and header. */
+
+    /* Because of padding, blksize(bp) may be larger than the caller believes
+     * their payload to be. If the value of s lies between the originally
+     * requested size and the real (padded) block size, the caller intends to
+     * increase the size of their allocation; however, in this case s < blksize(bp).
+     * At any rate, alignment will bring the size back to the current size.
+     */
+    if (!s || s < blksize(bp)) {
+        assert(gross <= blksize(bp));
+
+        /* As in blkalloc, split if the resulting free block and the resized
+         * block are big enough. Otherwise just leave the block as it is.
+         */
+        if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
+            return p;
+
+        /* XXX blksplit(bp) assumes bp is free and creates a new used block at
+         * the end so it can't be reused as it is here, where a new free block
+         * is spawned at the end and the used block is reduced.
+         */
+
+        byte *nb = (byte *)bp + gross;
+        assert_ptr_aligned(nb, ALIGNMENT);
+
+        /* Truncate bp and place a new block in the free space. */
+        usz nsz = blksize(bp) - gross;
+        blksetsize(bp, gross);
+
+        bp = (struct block *)nb;
+        bp->owner = sp;
+        bp->prev = 0;
+        bp->next = sp->free_list;
+        if (bp->next)
+            bp->next->prev = bp;
+        bp->magic = MAGIC_BABY;
+        blksetsize(bp, nsz);
+        *blkfoot(bp) = nsz;
+        blksetfree(bp);         /* The new block is free */
+        blksetprevused(bp);     /* The reduced block is still in use */
+
+        /* Tell the next adjacent block about the new free block before it.
+         */
+        struct block *bq = blknextadj(bp);
+        if (bq) {
+            blksetprevfree(bq);
+
+            /* Creating a new free block may break the invariant that there may
+             * be no two free adjacent blocks. Coalesce to maintain that
+             * invariant.
+             */
+            if (blkisfree(bq))
+                coalesce(bp, bq);   /* Extend bp to take over bq. */
+        }
+
+
+        /* p still points to the original payload, now truncated.
+         */
+        return p;
+    }
+
+    struct block *bq = blknextadj(bp);
+    if (bq && blkisfree(bq) && blksize(bq) >= gross) {
+        /* Extend bp over bq. Once again, if the leftover space is big enough
+         * for a block, split; otherwise take the entire space.
+         *
+         * [    bp     ][   bq   ]
+         *  ------ gross ------
+         *                     == <- leftover
+         */
+        usz leftover = blksize(bp) + blksize(bq) - gross;
+        assert_aligned(leftover, ALIGNMENT);
+
+        if (leftover < MIN_BLKSZ) {
+            sever_block(bq);    // XXX adj(bq) used/free bits?
+            blksetsize(bp, blksize(bp) + blksize(bq)); /* Take all the space. */
+            return p;
+        }
+
+        /* Extend bp and split bq. No need to coalesce--bq is already free. */
+        blksetsize(bp) = gross;
+
+        byte *nb = (byte *)bp + gross;
+        sever_block(bq);
+        bq = (struct block *)nb;
+        bq->owner = sp;
+        bq->prev = 0;
+        bp->next = sp->free_list;
+        if (bq->next)
+            bq->next->prev = bq;
+        bq->magic = MAGIC_BABY;
+        blksetsize(bq, leftover);
+        blksetfree(bq);
+        blksetprevused(bq);
+
+        return p;
+    }
+
+    /* TODO Make a new allocation and move the entire payload.
+     */
+    return 0;
+}
