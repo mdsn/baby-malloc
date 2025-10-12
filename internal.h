@@ -82,9 +82,6 @@ static inline void assert_ptr_aligned(void *p, usz a) { assert((uptr)p % a == 0)
 static inline usz gross_size(usz size) { return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT); }
 static inline usz usz_max(usz a, usz b) { return a > b ? a : b; }
 
-void assert_aligned(usz x, usz a);
-void assert_ptr_aligned(void *p, usz a);
-
 void *realloc_truncate(struct block *bp, usz size);
 void *realloc_extend(struct block *bp, usz size);
 
@@ -96,6 +93,7 @@ void *realloc_extend(struct block *bp, usz size);
 struct span *spalloc(usz gross);
 void spfree(struct span *sp);
 struct block *spfirstblk(struct span *sp);
+void spsever(struct span *sp);
 
 /****
  * Blocks

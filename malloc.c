@@ -133,7 +133,7 @@ void spfree(struct span *sp) {
 
 int ptr_in_span(void *p, struct span *sp) {
     uptr usp = (uptr)sp;
-    uptr up = (uptr) p;
+    uptr up = (uptr)p;
     return usp <= up && up <= usp + sp->size;
 }
 
@@ -172,7 +172,7 @@ struct block *blksplit(struct block *bp, usz gross) {
 
     /* Compute new block position. */
     byte *nb = (byte *)bp + blksize(bp) - gross;
-    assert((uptr)nb % ALIGNMENT == 0); /* nb is aligned */
+    assert_ptr_aligned(nb, ALIGNMENT);
     assert(ptr_in_span(nb, sp)); /* nb landed within the span */
 
     /* Make free block smaller and leave it in the list. */
