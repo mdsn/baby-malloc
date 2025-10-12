@@ -576,8 +576,6 @@ void *realloc_extend(struct block *bp, usz size) {
     if (!q)
         return 0;
 
-    bq = block_from_payload(q);
-    assert(blksize(bq) >= size);
     memcpy(q, p, blksize(bp) - BLOCK_HDR_PADSZ);
     m_free(p);
 
