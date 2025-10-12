@@ -506,18 +506,12 @@ void *m_realloc(void *p, usz size) {
         if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
             return p;
 
-        /* XXX blksplit(bp) assumes bp is free and creates a new used block at
-         * the end so it can't be reused as it is here, where a new free block
-         * is spawned at the end and the used block is reduced.
-         */
-
-        byte *nb = (byte *)bp + gross;
-        assert_ptr_aligned(nb, ALIGNMENT);
-
         /* Truncate bp and place a new block in the free space. */
         usz nsz = blksize(bp) - gross;
         blksetsize(bp, gross);
 
+        byte *nb = (byte *)bp + gross;
+        assert_ptr_aligned(nb, ALIGNMENT);
         bp = blkinit(nb, sp, nsz);
         blkprepend(bp);
         blksetprevused(bp);     /* The reduced block is still in use */
