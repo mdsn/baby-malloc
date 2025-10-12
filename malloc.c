@@ -558,7 +558,10 @@ void *realloc_extend(struct block *bp, usz size) {
         assert_aligned(leftover, ALIGNMENT);
 
         if (leftover < MIN_BLKSZ) {
-            sever_block(bq);    // XXX adj(bq) used/free bits?
+            sever_block(bq);
+            bq = blknextadj(bq);
+            if (bq)
+                blksetprevused(bq);
             blksetsize(bp, blksize(bp) + blksize(bq)); /* Take all the space. */
             return p;
         }
