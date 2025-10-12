@@ -107,8 +107,10 @@ struct block *blkfind(usz gross);
 struct block *blkprevadj(struct block *bp);
 struct block *blknextadj(struct block *bp);
 struct block *blksplit(struct block *bp, usz gross);
-void *blkpayload(struct block *bp);
 
+static inline void *blkpayload(struct block *bp) {
+    return (char *)bp + BLOCK_HDR_PADSZ;
+}
 static inline b32 blkisfree(struct block *bp) {
     return !(bp->size & BIT_IN_USE);
 }
@@ -139,7 +141,9 @@ static inline usz *blkfoot(struct block *bp) {
  *
  ****/
 
-struct block *block_from_payload(void *p);
+static inline struct block *plblk(void *p) {
+    return (struct block *)((char *)p - BLOCK_HDR_PADSZ);
+}
 static inline usz plsize(struct block *bp) {
     return blksize(bp) - BLOCK_HDR_PADSZ;
 }

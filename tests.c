@@ -208,7 +208,7 @@ void test_block_from_payload(void) {
     struct block *bp = blkfind(gross);
 
     char *p = blkpayload(bp);
-    struct block *bq = block_from_payload(p);
+    struct block *bq = plblk(p);
 
     assert(bq && bq == bp);
 
@@ -236,7 +236,7 @@ void test_free_single_block(void) {
      */
     char *p = blkpayload(b1);
 
-    struct block *b2 = block_from_payload(p);
+    struct block *b2 = plblk(p);
     assert(b1 == b2);
     assert(!blkisfree(b2));
     assert(b2->magic == MAGIC_SPENT);
@@ -488,7 +488,7 @@ void test_calloc(void) {
     assert(p);
     assert_ptr_aligned(p, ALIGNMENT);
 
-    struct block *bp = block_from_payload(p);
+    struct block *bp = plblk(p);
     struct span *sp = bp->owner;
 
     assert_aligned(blksize(bp), ALIGNMENT);

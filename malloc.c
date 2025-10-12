@@ -345,18 +345,6 @@ struct block *blknextadj(struct block *bp) {
     return (struct block *)next;
 }
 
-/* Find the struct block * from a void * given by malloc.
- */
-struct block *block_from_payload(void *p) {
-    return (struct block *)((char *)p - BLOCK_HDR_PADSZ);
-}
-
-/* Get a pointer to the aligned memory owned by a block header.
- */
-void *blkpayload(struct block *bp) {
-    return (char *)bp + BLOCK_HDR_PADSZ;
-}
-
 /* Join blocks by extending bp to cover bq and removing bq from the free list.
  * Bq must be the next adjacent block after bp, and be free. Importantly, bq
  * is no longer a valid block pointer after calling coalesce(), since it points
@@ -448,7 +436,7 @@ void m_free(void *p) {
     if (!p)
         return;
 
-    struct block *bp = block_from_payload(p);
+    struct block *bp = plblk(p);
     assert(!blkisfree(bp));
     blkfree(bp);
 
@@ -468,7 +456,7 @@ void *m_calloc(usz n, usz s) {
     void *p = m_malloc(s);
     if (!p)
         return 0;
-    struct block *bp = block_from_payload(p);
+    struct block *bp = plblk(p);
     memset(p, 0, plsize(bp));
     return p;
 }
@@ -495,7 +483,7 @@ void *m_realloc(void *p, usz size) {
     if (!p)
         return m_malloc(size);
 
-    struct block *bp = block_from_payload(p);
+    struct block *bp = plblk(p);
     if (!size || size < blksize(bp))
         return realloc_truncate(bp, size);
 
