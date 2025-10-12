@@ -581,7 +581,16 @@ void *m_realloc(void *p, usz s) {
         return p;
     }
 
-    /* TODO Make a new allocation and move the entire payload.
+    /* Make a new allocation and move the entire payload.
      */
-    return 0;
+    void *q = m_malloc(s);
+    if (!q)
+        return 0;
+
+    bq = block_from_payload(q);
+    assert(blksize(bq) >= s);
+    memcpy(q, p, blksize(bp) - BLOCK_HDR_PADSZ);
+    m_free(p);
+
+    return q;
 }
