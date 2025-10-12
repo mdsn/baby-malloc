@@ -497,41 +497,8 @@ void *m_realloc(void *p, usz size) {
      * increase the size of their allocation; however, in this case size < blksize(bp).
      * At any rate, alignment will bring the size back to the current size.
      */
-    if (!size || size < blksize(bp)) {
-        assert(gross <= blksize(bp));
-
-        /* As in blkalloc, split if the resulting free block and the resized
-         * block are big enough. Otherwise just leave the block as it is.
-         */
-        if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
-            return p;
-
-        /* Truncate bp and place a new block in the free space. */
-        usz nsz = blksize(bp) - gross;
-        blksetsize(bp, gross);
-
-        byte *nb = (byte *)bp + gross;
-        assert_ptr_aligned(nb, ALIGNMENT);
-        bp = blkinit(nb, sp, nsz);
-        blkprepend(bp);
-        blksetprevused(bp);     /* The reduced block is still in use */
-
-        /* Tell the next adjacent block about the new free block before it. */
-        struct block *bq = blknextadj(bp);
-        if (bq) {
-            blksetprevfree(bq);
-
-            /* Creating a new free block may break the invariant that there may
-             * be no two free adjacent blocks. Coalesce to maintain that
-             * invariant.
-             */
-            if (blkisfree(bq))
-                coalesce(bp, bq);   /* Extend bp to take over bq. */
-        }
-
-        /* p still points to the original payload, now truncated. */
-        return p;
-    }
+    if (!size || size < blksize(bp))
+        return realloc_truncate(bp, gross);
 
     struct block *bq = blknextadj(bp);
     if (bq && blkisfree(bq) && blksize(bq) >= gross) {
@@ -574,4 +541,43 @@ void *m_realloc(void *p, usz size) {
     m_free(p);
 
     return q;
+}
+
+void *realloc_truncate(struct block *bp, usz gross) {
+    assert(bp && !blkisfree(bp));
+    assert(gross <= blksize(bp));
+
+    struct span *sp = bp->owner;
+
+    /* As in blkalloc, split if the resulting free block and the resized
+     * block are big enough. Otherwise just leave the block as it is.
+     */
+    if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
+        return payload_from_block(bp);
+
+    /* Truncate bp and place a new block in the free space. */
+    usz nsz = blksize(bp) - gross;
+    blksetsize(bp, gross);
+
+    byte *nb = (byte *)bp + gross;
+    assert_ptr_aligned(nb, ALIGNMENT);
+    bp = blkinit(nb, sp, nsz);
+    blkprepend(bp);
+    blksetprevused(bp);     /* The reduced block is still in use */
+
+    /* Tell the next adjacent block about the new free block before it. */
+    struct block *bq = blknextadj(bp);
+    if (bq) {
+        blksetprevfree(bq);
+
+        /* Creating a new free block may break the invariant that there can
+         * be no two free adjacent blocks. Coalesce to maintain that
+         * invariant.
+         */
+        if (blkisfree(bq))
+            coalesce(bp, bq);   /* Extend bp to take over bq. */
+    }
+
+    /* bp still owns the original payload, now truncated. */
+    return payload_from_block(bp);
 }

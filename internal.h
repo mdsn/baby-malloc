@@ -78,6 +78,8 @@ usz gross_size(usz size);
 void assert_aligned(usz x, usz a);
 void assert_ptr_aligned(void *p, usz a);
 
+void *realloc_truncate(struct block *bp, usz size);
+
 struct span *alloc_span(usz gross);
 void free_span(struct span *sp);
 struct block *spfirstblk(struct span *sp);
