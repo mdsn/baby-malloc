@@ -92,6 +92,7 @@ struct block *blkinitused(void *p, struct span *sp, usz size);
 struct block *coalesce(struct block *bp);
 void blkcoalesce(struct block *bp, struct block *bq);
 void blkprepend(struct block *bp);
+void blksever(struct block *bp);
 struct block *blkfind(usz gross);
 struct block *blkprevadj(struct block *bp);
 struct block *blknextadj(struct block *bp);

@@ -151,7 +151,7 @@ int ptr_in_span(void *p, struct span *sp) {
 
 /* Take block bp off of its span's free list.
  */
-void sever_block(struct block *bp) {
+void blksever(struct block *bp) {
     struct span *sp = bp->owner;
 
     if (bp->next) assert(bp->next->prev == bp);
@@ -211,7 +211,7 @@ struct block *blkalloc(usz gross, struct block *bp) {
      * fragmentation and assign the entire block. Otherwise, split.
      */
     if (blksize(bp) - gross < MIN_BLKSZ) {
-        sever_block(bp);
+        blksever(bp);
         /* No need to update bp's size. Its entire size is already correct. */
         blksetused(bp);
         bp->prev = bp->next = 0;    /* Not strictly necessary. */
@@ -368,7 +368,7 @@ void blkcoalesce(struct block *bp, struct block *bq) {
     assert(blkisfree(bp) && blkisfree(bq));
 
     /* Remove bq from the free list to ensure it's no longer allocated. */
-    sever_block(bq);
+    blksever(bq);
 
     usz bsz = blksize(bp) + blksize(bq);
     blksetsize(bp, bsz);
@@ -558,7 +558,7 @@ void *realloc_extend(struct block *bp, usz size) {
         assert_aligned(leftover, ALIGNMENT);
 
         if (leftover < MIN_BLKSZ) {
-            sever_block(bq);
+            blksever(bq);
             bq = blknextadj(bq);
             if (bq)
                 blksetprevused(bq);
@@ -570,7 +570,7 @@ void *realloc_extend(struct block *bp, usz size) {
         blksetsize(bp, gross);
 
         byte *nb = (byte *)bp + gross;
-        sever_block(bq);
+        blksever(bq);
         bq = blkinit(nb, sp, leftover);
         blkprepend(bq);
         blksetprevused(bq);
