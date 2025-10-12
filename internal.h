@@ -71,6 +71,9 @@ STATIC_ASSERT(SPAN_HDR_PADSZ == 32, span_size_drifted);
 STATIC_ASSERT(BLOCK_HDR_PADSZ == 48, block_size_drifted);
 STATIC_ASSERT((MIN_MMAPSZ & (MIN_MMAPSZ - 1)) == 0, min_mmapsz_power_of_two);
 
+static inline void assert_aligned(usz x, usz a) { assert(x % a == 0); }
+static inline void assert_ptr_aligned(void *p, usz a) { assert((uptr)p % a == 0); }
+
 /* Internal helper functions used by malloc.c and unit tests.
  */
 usz gross_size(usz size);

@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <unistd.h> /* getpagesize */
 #include <sys/mman.h> /* mmap */
-#include <string.h> /* memset */
+#include <string.h> /* memset, memcpy */
 
 #include "malloc.h"
 #include "internal.h"
@@ -16,14 +16,13 @@
 /* The bookkeeping consists of two layers.
  *
  * A span is a group of contiguous pages requested from the OS with mmap(2).
- * Its header holds the original size of the span, necessary because munmap
- * needs both the address and length; the number of free bytes, to determine if
- * a malloc() request can be served by this span; and a pointer to the next
- * span being tracked. Each span has its own free list of blocks.
+ * Spans are organized in a doubly linked list.
  *
  * A block is a logical chunk of memory within a span, allocated to serve a
- * malloc() call. It also holds size information and a pointer to the next free
- * block in the span.
+ * malloc() call. Free blocks are organized in a doubly linked list. The span
+ * that owns them has a pointer to the head of that list. The least significant
+ * bits of the block size indicate whether the block is in use, and whether the
+ * previous physically adjacent block is in use.
  *
  * ┌────────────────────────┐
  * │struct span             │ ───┐
@@ -39,30 +38,22 @@
  * ├────────────────────────┤ ───┐
  * │                        │    │
  * │                        │    │
+ * │[footer: block size]    │    │
  * ├────────────────────────┤    │
  * │struct block (free)     │ <──┘
  * ├────────────────────────┤
  * │                        │
- * │                        │
+ * │[footer: block size]    │
  * └────────────────────────┘
  */
 
-void assert_aligned(usz x, usz a) {
-    assert(x % a == 0);
-}
-
-void assert_ptr_aligned(void *p, usz a) {
-    /* XXX how do uintptr_t and size_t relate? */
-    assert((uptr)p % a == 0);
-}
-
 /* Align a pointer to the next multiple of 16 address.
- */
 void *align_ptr(void *p) {
     uptr x = (uptr)p;
     uptr y = (x + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1);
     return (void *)y;
 }
+*/
 
 /* Get a pointer to the first block header after a span header, considering
  * padding.
