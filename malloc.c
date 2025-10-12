@@ -126,7 +126,7 @@ void sever_span(struct span *sp) {
  * Eventually this could assert on a count of free blocks.
  * XXX return the value from munmap?
  */
-void free_span(struct span *sp) {
+void spfree(struct span *sp) {
     sever_span(sp);
     munmap(sp, sp->size);
 }

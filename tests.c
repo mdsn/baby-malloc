@@ -104,7 +104,7 @@ void test_minimum_span_allocation(void) {
     assert(!sp->free_list); /* All span is used, no more free blocks. */
 
     /* Clean up. */
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_large_span_allocation(void) {
@@ -117,7 +117,7 @@ void test_large_span_allocation(void) {
     assert_aligned(sp->size, pagesize);
 
     /* Clean up. */
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_free_only_span(void) {
@@ -131,7 +131,7 @@ void test_free_only_span(void) {
      */
     assert(base == sp);
 
-    free_span(sp);
+    spfree(sp);
 
     assert(!base);
     /* sp has been munmapped--reading through it will segfault. */
@@ -149,9 +149,9 @@ void test_alloc_multiple_spans(void) {
     assert(s1 && s2->next == s1 && s1->prev == s2);
     assert(!s3->prev && !s1->next);
 
-    free_span(s1);
-    free_span(s2);
-    free_span(s3);
+    spfree(s1);
+    spfree(s2);
+    spfree(s3);
 }
 
 void test_free_multiple_spans(void) {
@@ -162,18 +162,18 @@ void test_free_multiple_spans(void) {
     struct span *s3 = spalloc(gross);
 
     /* free first span on the list */
-    free_span(s3);
+    spfree(s3);
 
     assert(base == s2);
     assert(!s2->prev);
 
     /* free last span on the list */
-    free_span(s1);
+    spfree(s1);
     assert(base == s2);
     assert(!s2->next);
 
     /* free last remaining span */
-    free_span(s2);
+    spfree(s2);
     assert(!base);
 
     /* Reallocate to test removing the middle span */
@@ -181,7 +181,7 @@ void test_free_multiple_spans(void) {
     s2 = spalloc(gross);
     s3 = spalloc(gross);
 
-    free_span(s2);
+    spfree(s2);
     assert(base == s3);
     assert(s3->next == s1 && s1->prev == s3);
     assert(!s3->prev && !s1->next);
@@ -198,7 +198,7 @@ void test_blkpayload(void) {
     assert(p && (uptr)p > (uptr)bp);
     assert((uptr)p - (uptr)bp == BLOCK_HDR_PADSZ);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_block_from_payload(void) {
@@ -212,7 +212,7 @@ void test_block_from_payload(void) {
 
     assert(bq && bq == bp);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_free_single_block(void) {
@@ -248,7 +248,7 @@ void test_free_single_block(void) {
     assert(!bp->next);
     assert(*blkfoot(bp) == bp->owner->size - SPAN_HDR_PADSZ);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 /* Verify that the next block in the span can be found regardless of its
@@ -286,7 +286,7 @@ void test_blknextadj(void) {
     assert(blknextadj(b2) == b1);
     assert(blknextadj(b1) == 0);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_blkfoot(void) {
@@ -312,7 +312,7 @@ void test_blkfoot(void) {
     usz *b1prev = (usz *)((uptr)b1 - sizeof(usz));
     assert(b1prev == b2foot);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_blksplit(void) {
@@ -328,7 +328,7 @@ void test_blksplit(void) {
     assert(*blkfoot(bp) == blksize(bp));
     assert(blkisprevfree(b1));
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_isprevfree_bit(void) {
@@ -353,7 +353,7 @@ void test_isprevfree_bit(void) {
     assert(blkisfree(b2) && !blkisprevfree(b2));
     assert(!blkisfree(b1) && blkisprevfree(b1));
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_blkprevfoot(void) {
@@ -374,7 +374,7 @@ void test_blkprevfoot(void) {
     assert(*blkprevfoot(b2) == blksize(bp));
     assert(*blkprevfoot(b2) == *blkfoot(bp));
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_blkprevadj(void) {
@@ -394,7 +394,7 @@ void test_blkprevadj(void) {
     assert(blkprevadj(b2) == bp);
     assert(blkprevadj(bp) == 0);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_coalesce(void) {
@@ -475,7 +475,7 @@ void test_coalesce(void) {
     assert(blksize(bp) == *blkfoot(bp));
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
 
-    free_span(sp);
+    spfree(sp);
 }
 
 void test_calloc(void) {
@@ -497,5 +497,5 @@ void test_calloc(void) {
     assert(blksize(bp) >= N * SZ);
     assert(!p[0] && !p[N - 1] && !p[1234] && !p[123456]);
 
-    free_span(sp);
+    spfree(sp);
 }
