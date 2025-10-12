@@ -515,12 +515,10 @@ void *realloc_extend(struct block *bp, usz size) {
     void *p = blkpayload(bp);
     struct block *bq = blknextadj(bp);
     if (bq && blkisfree(bq) && blksize(bq) >= gross) {
-        /* Extend bp over bq. Once again, if the leftover space is big enough
-         * for a block, split; otherwise take the entire space.
+        /* Extend bp over bq, splitting if there's enough space left.
          *
          * [    bp     ][   bq   ]
-         *  ------ gross ------
-         *                     == <- leftover
+         *  ------ gross ------## <- leftover
          */
         usz leftover = blksize(bp) + blksize(bq) - gross;
         assert_aligned(leftover, ALIGNMENT);
