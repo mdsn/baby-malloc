@@ -353,7 +353,7 @@ struct block *block_from_payload(void *p) {
 
 /* Get a pointer to the aligned memory owned by a block header.
  */
-void *payload_from_block(struct block *bp) {
+void *blkpayload(struct block *bp) {
     return (char *)bp + BLOCK_HDR_PADSZ;
 }
 
@@ -439,7 +439,7 @@ void *m_malloc(usz size) {
      * extended to a multiple of ALIGNMENT too, to ensure any subsequent
      * block header is automatically aligned.
      */
-    return payload_from_block(bp);
+    return blkpayload(bp);
 }
 
 /* Give back a block of memory to its span.
@@ -454,7 +454,7 @@ void m_free(void *p) {
 
     /* Coalesce in both directions. */
     bp = coalesce(bp);
-    p = payload_from_block(bp);
+    p = blkpayload(bp);
 
     /* Poison the block for visibility; skip the footer. */
     memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ - sizeof(usz));
@@ -514,7 +514,7 @@ void *realloc_truncate(struct block *bp, usz size) {
      * block are big enough. Otherwise just leave the block as it is.
      */
     if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
-        return payload_from_block(bp);
+        return blkpayload(bp);
 
     /* Truncate bp and place a new block in the free space. */
     usz nsz = blksize(bp) - gross;
@@ -534,7 +534,7 @@ void *realloc_truncate(struct block *bp, usz size) {
     }
 
     /* bp still owns the original payload, now truncated. */
-    return payload_from_block(bp);
+    return blkpayload(bp);
 }
 
 void *realloc_extend(struct block *bp, usz size) {
@@ -543,7 +543,7 @@ void *realloc_extend(struct block *bp, usz size) {
     usz gross = gross_size(size);
     assert(blksize(bp) < gross);
 
-    void *p = payload_from_block(bp);
+    void *p = blkpayload(bp);
     struct span *sp = bp->owner;
     struct block *bq = blknextadj(bp);
     if (bq && blkisfree(bq) && blksize(bq) >= gross) {

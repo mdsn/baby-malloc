@@ -124,6 +124,6 @@ static inline usz *blkfoot(struct block *bp) {
 }
 
 struct block *block_from_payload(void *p);
-void *payload_from_block(struct block *bp);
+void *blkpayload(struct block *bp);
 
 #endif

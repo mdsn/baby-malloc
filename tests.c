@@ -13,7 +13,7 @@ void test_large_span_allocation(void);
 void test_alloc_multiple_spans(void);
 void test_free_only_span(void);
 void test_free_single_block(void);
-void test_payload_from_block(void);
+void test_blkpayload(void);
 void test_block_from_payload(void);
 void test_blknextadj(void);
 void test_blkfoot(void);
@@ -41,7 +41,7 @@ int main(void) {
     test_large_span_allocation();
     test_free_only_span();
     test_free_single_block();
-    test_payload_from_block();
+    test_blkpayload();
     test_block_from_payload();
     test_alloc_multiple_spans();
     test_blknextadj();
@@ -187,13 +187,13 @@ void test_free_multiple_spans(void) {
     assert(!s3->prev && !s1->next);
 }
 
-void test_payload_from_block(void) {
-    printf("==== test_payload_from_block ====\n");
+void test_blkpayload(void) {
+    printf("==== test_blkpayload ====\n");
     usz gross = gross_size(64);
     struct span *sp = alloc_span(gross);
     struct block *bp = blkfind(gross);
 
-    char *p = payload_from_block(bp);
+    char *p = blkpayload(bp);
 
     assert(p && (uptr)p > (uptr)bp);
     assert((uptr)p - (uptr)bp == BLOCK_HDR_PADSZ);
@@ -207,7 +207,7 @@ void test_block_from_payload(void) {
     struct span *sp = alloc_span(gross);
     struct block *bp = blkfind(gross);
 
-    char *p = payload_from_block(bp);
+    char *p = blkpayload(bp);
     struct block *bq = block_from_payload(p);
 
     assert(bq && bq == bp);
@@ -234,7 +234,7 @@ void test_free_single_block(void) {
 
     /* This is the payload pointer that malloc would give to a caller.
      */
-    char *p = payload_from_block(b1);
+    char *p = blkpayload(b1);
 
     struct block *b2 = block_from_payload(p);
     assert(b1 == b2);
@@ -410,9 +410,9 @@ void test_coalesce(void) {
 
     usz bpsz = blksize(bp);
 
-    void *p1 = payload_from_block(b1);
-    void *p2 = payload_from_block(b2);
-    void *p3 = payload_from_block(b3);
+    void *p1 = blkpayload(b1);
+    void *p2 = blkpayload(b2);
+    void *p3 = blkpayload(b3);
 
     /* Should coalesce b3 and bp by extending bp (as prevadj of b3).
      * Free list after free: sp -> bp
@@ -449,17 +449,17 @@ void test_coalesce(void) {
 
     bpsz = blksize(bp);
 
-    m_free(payload_from_block(b2));
+    m_free(blkpayload(b2));
     assert(blkisfree(b2) && blksize(b2) == *blkfoot(b2));
     assert(sp->free_list == b2 && b2->next == bp && !bp->next);
 
-    m_free(payload_from_block(b4));
+    m_free(blkpayload(b4));
     /* No change to the free list */
     assert(sp->free_list == b2 && b2->next == bp && !bp->next);
     assert(blksize(bp) == bpsz + gross);
     assert(blksize(bp) == *blkfoot(bp));
 
-    m_free(payload_from_block(b1));
+    m_free(blkpayload(b1));
     /* No change to the free list, but b2 changed */
     assert(sp->free_list == b2 && b2->next == bp && !bp->next);
     assert(blksize(b2) == 2 * gross);
@@ -469,7 +469,7 @@ void test_coalesce(void) {
      * Free list: sp -> b2 -> bp
      */
 
-    m_free(payload_from_block(b3));
+    m_free(blkpayload(b3));
     assert(sp->free_list == bp && !bp->next);
     assert(blksize(bp) == bpsz + 4 * gross);
     assert(blksize(bp) == *blkfoot(bp));
