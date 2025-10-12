@@ -106,7 +106,7 @@ struct span *spalloc(usz gross) {
 
 /* Remove sp from the list of spans.
  */
-void sever_span(struct span *sp) {
+void spsever(struct span *sp) {
     if (sp == base) {
         base = sp->next;
         sp->next = 0;
@@ -127,7 +127,7 @@ void sever_span(struct span *sp) {
  * XXX return the value from munmap?
  */
 void spfree(struct span *sp) {
-    sever_span(sp);
+    spsever(sp);
     munmap(sp, sp->size);
 }
 
