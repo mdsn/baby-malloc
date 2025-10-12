@@ -477,11 +477,7 @@ void *realloc_truncate(struct block *bp, usz size) {
     usz gross = gross_size(size);
     assert(gross <= blksize(bp));
 
-    struct span *sp = bp->owner;
-
-    /* As in blkalloc, split if the resulting free block and the resized
-     * block are big enough. Otherwise just leave the block as it is.
-     */
+    /* Split if the resulting block and the resized block are big enough. */
     if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
         return blkpayload(bp);
 
@@ -491,7 +487,7 @@ void *realloc_truncate(struct block *bp, usz size) {
 
     byte *nb = (byte *)bp + gross;
     assert_ptr_aligned(nb, ALIGNMENT);
-    bp = blkinitfree(nb, sp, nsz);
+    bp = blkinitfree(nb, bp->owner, nsz);
     blkprepend(bp);
     blksetprevused(bp);     /* The reduced block is still in use */
 
