@@ -68,7 +68,7 @@ void *align_ptr(void *p) {
 /* Get a pointer to the first block header after a span header, considering
  * padding.
  */
-struct block *first_block(struct span *sp) {
+struct block *spfirstblk(struct span *sp) {
     return (struct block *)((char *)sp + SPAN_HDR_PADSZ);
 }
 
@@ -114,16 +114,8 @@ struct span *alloc_span(usz gross) {
     /* Place one initial all-spanning free block immediately after the span
      * header.
      */
-    sp->free_list = first_block(sp);
-    sp->free_list->prev = 0;
-    sp->free_list->next = 0;
-    sp->free_list->owner = sp;
-    sp->free_list->magic = MAGIC_BABY;
     usz size = spsz - (usz)SPAN_HDR_PADSZ;
-    blksetsize(sp->free_list, size);
-    blksetfree(sp->free_list);
-    *blkfoot(sp->free_list) = size;
-
+    sp->free_list = blkinit(spfirstblk(sp), sp, size);
     return sp;
 }
 
@@ -152,6 +144,12 @@ void sever_span(struct span *sp) {
 void free_span(struct span *sp) {
     sever_span(sp);
     munmap(sp, sp->size);
+}
+
+int ptr_in_span(void *p, struct span *sp) {
+    uptr usp = (uptr)sp;
+    uptr up = (uptr) p;
+    return usp <= up && up <= usp + sp->size;
 }
 
 /* Take block bp off of its span's free list.
@@ -249,21 +247,37 @@ struct block *blkalloc(usz gross, struct block *bp) {
  */
 void blkfree(struct block *bp) {
     struct span *sp = bp->owner;
-
-    blksetfree(bp);
-    *blkfoot(bp) = blksize(bp);
-    bp->magic = MAGIC_BABY;
-    bp->prev = 0;
-    bp->next = sp->free_list;
-    sp->free_list = bp;
-    if (bp->next)
-        bp->next->prev = bp;
+    blkinit(bp, sp, blksize(bp));
 
     /* Tell next physical block that prev is free.
      */
     struct block *bn = blknextadj(bp);
     if (bn)
         blksetprevfree(bn);
+}
+
+/* Initialize a header at location p for a free block with the given size and
+ * owner, and prepend it to the span's free list.
+ */
+struct block *blkinit(void *p, struct span *sp, usz size) {
+    assert(ptr_in_span(p, sp));
+    assert_ptr_aligned(p, ALIGNMENT);
+    assert(ptr_in_span((byte *)p + size, sp));
+
+    struct block *bp = (struct block *)p;
+    blksetfree(bp);
+    blksetsize(bp, size);
+    *blkfoot(bp) = size;
+    bp->owner = sp;
+    bp->prev = 0;
+    bp->magic = MAGIC_BABY;
+
+    bp->next = sp->free_list;
+    sp->free_list = bp;
+    if (bp->next)
+        bp->next->prev = bp;
+
+    return bp;
 }
 
 /* Traverse the free list of each span to find a free block big enough to serve
@@ -512,16 +526,7 @@ void *m_realloc(void *p, usz size) {
         usz nsz = blksize(bp) - gross;
         blksetsize(bp, gross);
 
-        bp = (struct block *)nb;
-        bp->owner = sp;
-        bp->prev = 0;
-        bp->next = sp->free_list;
-        if (bp->next)
-            bp->next->prev = bp;
-        bp->magic = MAGIC_BABY;
-        blksetsize(bp, nsz);
-        *blkfoot(bp) = nsz;
-        blksetfree(bp);         /* The new block is free */
+        bp = blkinit(nb, sp, nsz);
         blksetprevused(bp);     /* The reduced block is still in use */
 
         /* Tell the next adjacent block about the new free block before it.
@@ -537,7 +542,6 @@ void *m_realloc(void *p, usz size) {
             if (blkisfree(bq))
                 coalesce(bp, bq);   /* Extend bp to take over bq. */
         }
-
 
         /* p still points to the original payload, now truncated.
          */
@@ -567,15 +571,7 @@ void *m_realloc(void *p, usz size) {
 
         byte *nb = (byte *)bp + gross;
         sever_block(bq);
-        bq = (struct block *)nb;
-        bq->owner = sp;
-        bq->prev = 0;
-        bp->next = sp->free_list;
-        if (bq->next)
-            bq->next->prev = bq;
-        bq->magic = MAGIC_BABY;
-        blksetsize(bq, leftover);
-        blksetfree(bq);
+        bq = blkinit(nb, sp, leftover);
         blksetprevused(bq);
 
         return p;
