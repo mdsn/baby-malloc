@@ -563,7 +563,7 @@ void *m_realloc(void *p, usz s) {
         }
 
         /* Extend bp and split bq. No need to coalesce--bq is already free. */
-        blksetsize(bp) = gross;
+        blksetsize(bp, gross);
 
         byte *nb = (byte *)bp + gross;
         sever_block(bq);
