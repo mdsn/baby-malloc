@@ -81,9 +81,19 @@ void assert_ptr_aligned(void *p, usz a);
 void *realloc_truncate(struct block *bp, usz size);
 void *realloc_extend(struct block *bp, usz size);
 
+/****
+ * Spans
+ *
+ ****/
+
 struct span *alloc_span(usz gross);
 void free_span(struct span *sp);
 struct block *spfirstblk(struct span *sp);
+
+/****
+ * Blocks
+ *
+ ****/
 
 struct block *blkalloc(usz gross, struct block *bp);
 void blkfree(struct block *bp);
@@ -97,6 +107,7 @@ struct block *blkfind(usz gross);
 struct block *blkprevadj(struct block *bp);
 struct block *blknextadj(struct block *bp);
 struct block *blksplit(struct block *bp, usz gross);
+void *blkpayload(struct block *bp);
 
 static inline b32 blkisfree(struct block *bp) {
     return !(bp->size & BIT_IN_USE);
@@ -123,7 +134,14 @@ static inline usz *blkfoot(struct block *bp) {
     return (usz *)((uptr)bp + blksize(bp) - sizeof(usz));
 }
 
+/****
+ * Payloads
+ *
+ ****/
+
 struct block *block_from_payload(void *p);
-void *blkpayload(struct block *bp);
+static inline usz plsize(struct block *bp) {
+    return blksize(bp) - BLOCK_HDR_PADSZ;
+}
 
 #endif

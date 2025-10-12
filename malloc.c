@@ -149,6 +149,15 @@ int ptr_in_span(void *p, struct span *sp) {
     return usp <= up && up <= usp + sp->size;
 }
 
+/* Calculate the gross size needed to serve a user request for `size` bytes.
+ * The gross size includes the block header and its padding, the requested
+ * memory, and padding after the memory to fill to the next ALIGNMENT boundary
+ * (so the next block header will also be aligned).
+ */
+usz gross_size(usz size) {
+    return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT);
+}
+
 /* Take block bp off of its span's free list.
  */
 void blksever(struct block *bp) {
@@ -336,15 +345,6 @@ struct block *blknextadj(struct block *bp) {
     return (struct block *)next;
 }
 
-/* Calculate the gross size needed to serve a user request for `size` bytes.
- * The gross size includes the block header and its padding, the requested
- * memory, and padding after the memory to fill to the next ALIGNMENT boundary
- * (so the next block header will also be aligned).
- */
-usz gross_size(usz size) {
-    return BLOCK_HDR_PADSZ + ALIGN_UP(size, ALIGNMENT);
-}
-
 /* Find the struct block * from a void * given by malloc.
  */
 struct block *block_from_payload(void *p) {
@@ -457,7 +457,7 @@ void m_free(void *p) {
     p = blkpayload(bp);
 
     /* Poison the block for visibility; skip the footer. */
-    memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ - sizeof(usz));
+    memset(p, POISON_BYTE, plsize(bp) - sizeof(usz));
 }
 
 /* Allocate enough contiguous space for n elements of size s bytes each. The
@@ -469,7 +469,7 @@ void *m_calloc(usz n, usz s) {
     if (!p)
         return 0;
     struct block *bp = block_from_payload(p);
-    memset(p, 0, blksize(bp) - BLOCK_HDR_PADSZ);
+    memset(p, 0, plsize(bp));
     return p;
 }
 
@@ -583,7 +583,7 @@ void *realloc_extend(struct block *bp, usz size) {
     if (!q)
         return 0;
 
-    memcpy(q, p, blksize(bp) - BLOCK_HDR_PADSZ);
+    memcpy(q, p, plsize(bp));
     m_free(p);
 
     return q;
