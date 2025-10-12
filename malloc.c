@@ -72,7 +72,7 @@ struct block *spfirstblk(struct span *sp) {
     return (struct block *)((char *)sp + SPAN_HDR_PADSZ);
 }
 
-struct span *alloc_span(usz gross) {
+struct span *spalloc(usz gross) {
     /* mmap obtains memory in multiples of the page size, padding up the
      * requested size if necessary. Therefore it's in our best interest to
      * round up the request to a page boundary as well, to get that extra
@@ -387,7 +387,7 @@ void *m_malloc(usz size) {
      * be requested from the OS.
      */
     if (bp == 0) {
-        struct span *sp = alloc_span(gross);
+        struct span *sp = spalloc(gross);
         if (sp == 0)     /* mmap(2) failed, not my fault */
             return 0;
 

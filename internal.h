@@ -93,7 +93,7 @@ void *realloc_extend(struct block *bp, usz size);
  *
  ****/
 
-struct span *alloc_span(usz gross);
+struct span *spalloc(usz gross);
 void free_span(struct span *sp);
 struct block *spfirstblk(struct span *sp);
 

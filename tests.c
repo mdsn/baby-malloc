@@ -65,7 +65,7 @@ void test_minimum_span_allocation(void) {
     usz want = 128;
     usz gross = gross_size(want);
 
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
     assert(sp && sp->size >= gross);
     assert(!sp->prev && !sp->next);
     assert_aligned(sp->size, pagesize);
@@ -112,7 +112,7 @@ void test_large_span_allocation(void) {
     usz want = 1024 * 1024;
     usz gross = gross_size(want);
 
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
     assert(sp && sp->size >= gross);
     assert_aligned(sp->size, pagesize);
 
@@ -123,7 +123,7 @@ void test_large_span_allocation(void) {
 void test_free_only_span(void) {
     printf("==== test_free_only_span ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     assert(sp && sp->size == MIN_MMAPSZ);
     /* sp is the only span on the global list. This actually depends on the
@@ -140,11 +140,11 @@ void test_free_only_span(void) {
 void test_alloc_multiple_spans(void) {
     printf("==== test_alloc_multiple_spans ====\n");
     usz gross = gross_size(64);
-    struct span *s1 = alloc_span(gross);
-    struct span *s2 = alloc_span(gross);
-    struct span *s3 = alloc_span(gross);
+    struct span *s1 = spalloc(gross);
+    struct span *s2 = spalloc(gross);
+    struct span *s3 = spalloc(gross);
 
-    assert(s3 && base == s3); /* alloc_span prepends */
+    assert(s3 && base == s3); /* spalloc prepends */
     assert(s2 && s3->next == s2 && s2->prev == s3);
     assert(s1 && s2->next == s1 && s1->prev == s2);
     assert(!s3->prev && !s1->next);
@@ -157,9 +157,9 @@ void test_alloc_multiple_spans(void) {
 void test_free_multiple_spans(void) {
     printf("==== test_free_multiple_spans ====\n");
     usz gross = gross_size(64);
-    struct span *s1 = alloc_span(gross);
-    struct span *s2 = alloc_span(gross);
-    struct span *s3 = alloc_span(gross);
+    struct span *s1 = spalloc(gross);
+    struct span *s2 = spalloc(gross);
+    struct span *s3 = spalloc(gross);
 
     /* free first span on the list */
     free_span(s3);
@@ -177,9 +177,9 @@ void test_free_multiple_spans(void) {
     assert(!base);
 
     /* Reallocate to test removing the middle span */
-    s1 = alloc_span(gross);
-    s2 = alloc_span(gross);
-    s3 = alloc_span(gross);
+    s1 = spalloc(gross);
+    s2 = spalloc(gross);
+    s3 = spalloc(gross);
 
     free_span(s2);
     assert(base == s3);
@@ -190,7 +190,7 @@ void test_free_multiple_spans(void) {
 void test_blkpayload(void) {
     printf("==== test_blkpayload ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
     struct block *bp = blkfind(gross);
 
     char *p = blkpayload(bp);
@@ -204,7 +204,7 @@ void test_blkpayload(void) {
 void test_block_from_payload(void) {
     printf("==== test_block_from_payload ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
     struct block *bp = blkfind(gross);
 
     char *p = blkpayload(bp);
@@ -218,7 +218,7 @@ void test_block_from_payload(void) {
 void test_free_single_block(void) {
     printf("==== test_free_single_block ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     assert(sp && sp->size == MIN_MMAPSZ);
     assert(base == sp);
@@ -257,7 +257,7 @@ void test_free_single_block(void) {
 void test_blknextadj(void) {
     printf("==== test_blknextadj ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     struct block *bp = blkfind(gross);
     struct block *b1 = blkalloc(gross, bp);
@@ -292,7 +292,7 @@ void test_blknextadj(void) {
 void test_blkfoot(void) {
     printf("==== test_blktrail ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     struct block *bp = blkfind(gross);
     struct block *b1 = blkalloc(gross, bp);
@@ -318,7 +318,7 @@ void test_blkfoot(void) {
 void test_blksplit(void) {
     printf("==== test_blksplit ====\n");
     usz gross = gross_size(4096);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
     struct block *bp = blkfind(gross);
 
     struct block *b1 = blksplit(bp, gross);
@@ -334,7 +334,7 @@ void test_blksplit(void) {
 void test_isprevfree_bit(void) {
     printf("==== test_isprevfree_bit ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     /* bp -> b3 -> b2 -> b1 */
     struct block *bp = blkfind(gross);
@@ -359,7 +359,7 @@ void test_isprevfree_bit(void) {
 void test_blkprevfoot(void) {
     printf("==== test_blkprevfoot ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     /* bp -> b2 -> b1 */
     struct block *bp = blkfind(gross);
@@ -380,7 +380,7 @@ void test_blkprevfoot(void) {
 void test_blkprevadj(void) {
     printf("==== test_blkprevadj ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     /* bp -> b2 -> b1 */
     struct block *bp = blkfind(gross);
@@ -400,7 +400,7 @@ void test_blkprevadj(void) {
 void test_coalesce(void) {
     printf("==== test_coalesce ====\n");
     usz gross = gross_size(64);
-    struct span *sp = alloc_span(gross);
+    struct span *sp = spalloc(gross);
 
     /* bp -> b3 -> b2 -> b1 */
     struct block *bp = blkfind(gross);
