@@ -182,8 +182,7 @@ struct block *blksplit(struct block *bp, usz gross) {
 
     /* gross is already aligned, so it is safe to place a new header there. */
     bp = blkinitused(nb, sp, gross);
-    blksetprevfree(bp);         /* Not strictly necessary? setsize clears
-                                   IN_USE bit */
+    blksetprevfree(bp);
     return bp;
 }
 
@@ -200,19 +199,16 @@ struct block *blkalloc(usz gross, struct block *bp) {
      */
     if (blksize(bp) - gross < MIN_BLKSZ) {
         blksever(bp);
-        /* No need to update bp's size. Its entire size is already correct. */
-        blksetused(bp);
-        bp->prev = bp->next = 0;    /* Not strictly necessary. */
-        bp->magic = MAGIC_SPENT;    /* Take the poison. */
+        blkinitused(bp, bp->owner, blksize(bp));
     } else {
         /* blksplit takes care of fully initializing the new block. */
         bp = blksplit(bp, gross);
     }
 
     /* Let the next block know its prev neighbor is in use. */
-    struct block *bn = blknextadj(bp);
-    if (bn)
-        blksetprevused(bn);
+    struct block *bq = blknextadj(bp);
+    if (bq)
+        blksetprevused(bq);
 
     return bp;
 }
@@ -224,9 +220,9 @@ void blkfree(struct block *bp) {
     blkinitfree(bp, sp, blksize(bp));
     blkprepend(bp);
 
-    struct block *bn = blknextadj(bp);
-    if (bn)
-        blksetprevfree(bn);
+    struct block *bq = blknextadj(bp);
+    if (bq)
+        blksetprevfree(bq);
 }
 
 /* Initialize a block header at location p with the given size and owner.
