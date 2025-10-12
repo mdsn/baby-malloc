@@ -486,22 +486,16 @@ void *m_realloc(void *p, usz size) {
         return m_malloc(size);
 
     struct block *bp = block_from_payload(p);
-    usz gross = gross_size(size); /* gross_size considers padding and header. */
-
-    /* Because of padding, blksize(bp) may be larger than the caller believes
-     * their payload to be. If the value of size lies between the originally
-     * requested size and the real (padded) block size, the caller intends to
-     * increase the size of their allocation; however, in this case size < blksize(bp).
-     * At any rate, alignment will bring the size back to the current size.
-     */
     if (!size || size < blksize(bp))
-        return realloc_truncate(bp, gross);
+        return realloc_truncate(bp, size);
 
-    return realloc_extend(bp, gross);
+    return realloc_extend(bp, size);
 }
 
-void *realloc_truncate(struct block *bp, usz gross) {
+void *realloc_truncate(struct block *bp, usz size) {
     assert(bp && !blkisfree(bp));
+
+    usz gross = gross_size(size);
     assert(gross <= blksize(bp));
 
     struct span *sp = bp->owner;
