@@ -457,41 +457,41 @@ void *m_calloc(usz n, usz s) {
     return p;
 }
 
-/* Try to change the size of allocation p to s, and return p. If s is larger
- * than the current allocation and there is enough contiguous space to extend
- * the current allocation, the allocation is extended in place. Otherwise,
- * realloc() creates a new allocation, copies all the bytes from the original
- * allocation to the new one, and frees the old allocation. If p is NULL,
- * realloc() just returns a pointer to a new allocation for s bytes, as if
- * malloc(s) had been called. If p is not NULL and s is zero, a new
+/* Try to change the size of allocation p to size, and return p. If size is
+ * larger than the current allocation and there is enough contiguous space to
+ * extend the current allocation, the allocation is extended in place.
+ * Otherwise, realloc() creates a new allocation, copies all the bytes from the
+ * original allocation to the new one, and frees the old allocation. If p is
+ * NULL, realloc() just returns a pointer to a new allocation for size bytes,
+ * as if malloc(size) had been called. If p is not NULL and size is zero, a new
  * minimum-sized allocation is created and the original allocation is freed.
  *
  * The returned allocation is not zeroed out.
  */
-void *m_realloc(void *p, usz s) {
+void *m_realloc(void *p, usz size) {
     /* Scenarios:
      * 1. There is no allocation (p == 0).
-     * 2. The payload is reduced to minimum payload size (p && s == 0).
+     * 2. The payload is reduced to minimum payload size (p && size == 0).
      * 3. The payload is reduced.
      * 4. The payload is extended and there is adjacent space in the block.
      * 5. The payload is extended but needs to be moved.
      */
     if (!p)
-        return m_malloc(s);
+        return m_malloc(size);
 
     struct block *bp = block_from_payload(p);
     struct span *sp = bp->owner;
     assert(bp && sp);
 
-    usz gross = gross_size(s); /* gross_size considers padding and header. */
+    usz gross = gross_size(size); /* gross_size considers padding and header. */
 
     /* Because of padding, blksize(bp) may be larger than the caller believes
-     * their payload to be. If the value of s lies between the originally
+     * their payload to be. If the value of size lies between the originally
      * requested size and the real (padded) block size, the caller intends to
-     * increase the size of their allocation; however, in this case s < blksize(bp).
+     * increase the size of their allocation; however, in this case size < blksize(bp).
      * At any rate, alignment will bring the size back to the current size.
      */
-    if (!s || s < blksize(bp)) {
+    if (!size || size < blksize(bp)) {
         assert(gross <= blksize(bp));
 
         /* As in blkalloc, split if the resulting free block and the resized
@@ -583,12 +583,12 @@ void *m_realloc(void *p, usz s) {
 
     /* Make a new allocation and move the entire payload.
      */
-    void *q = m_malloc(s);
+    void *q = m_malloc(size);
     if (!q)
         return 0;
 
     bq = block_from_payload(q);
-    assert(blksize(bq) >= s);
+    assert(blksize(bq) >= size);
     memcpy(q, p, blksize(bp) - BLOCK_HDR_PADSZ);
     m_free(p);
 
