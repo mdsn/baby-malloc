@@ -52,8 +52,7 @@ void assert_aligned(usz x, usz a) {
 }
 
 void assert_ptr_aligned(void *p, usz a) {
-    /* XXX how do uintptr_t and size_t relate?
-     */
+    /* XXX how do uintptr_t and size_t relate? */
     assert((uptr)p % a == 0);
 }
 
@@ -111,9 +110,7 @@ struct span *alloc_span(usz gross) {
         sp->next->prev = sp;
     base = sp;
 
-    /* Place one initial all-spanning free block immediately after the span
-     * header.
-     */
+    /* Place one all-spanning free block immediately after the span header. */
     usz size = spsz - (usz)SPAN_HDR_PADSZ;
     sp->free_list = blkinit(spfirstblk(sp), sp, size);
     return sp;
@@ -185,20 +182,17 @@ struct block *blksplit(struct block *bp, usz gross) {
     assert(bp && blksize(bp) > gross);
     struct span *sp = bp->owner;
 
-    /* Compute new block position.
-     */
+    /* Compute new block position. */
     byte *nb = (byte *)bp + blksize(bp) - gross;
     assert((uptr)nb % ALIGNMENT == 0); /* nb is aligned */
-    /* nb landed within the span */
-    assert((uptr)sp < (uptr)nb && (uptr)nb < ((uptr)sp + sp->size));
+    assert(ptr_in_span(nb, sp)); /* nb landed within the span */
 
     /* Make free block smaller and leave it in the list. */
     usz bsz = blksize(bp) - gross;
     blksetsize(bp, bsz);
     *blkfoot(bp) = bsz;
 
-    /* gross is already aligned, so it is safe to place a new header there.
-     */
+    /* gross is already aligned, so it is safe to place a new header there. */
     bp = blkinitused(nb, sp, gross);
     blksetprevfree(bp);         /* Not strictly necessary? setsize clears
                                    IN_USE bit */
@@ -218,19 +212,16 @@ struct block *blkalloc(usz gross, struct block *bp) {
      */
     if (blksize(bp) - gross < MIN_BLKSZ) {
         sever_block(bp);
-        /* No need to update bp's size. Its entire size is already correct.
-         */
+        /* No need to update bp's size. Its entire size is already correct. */
         blksetused(bp);
         bp->prev = bp->next = 0;    /* Not strictly necessary. */
         bp->magic = MAGIC_SPENT;    /* Take the poison. */
     } else {
-        /* blksplit takes care of fully initializing the new block.
-         */
+        /* blksplit takes care of fully initializing the new block. */
         bp = blksplit(bp, gross);
     }
 
-    /* Let the next block know its prev neighbor is in use.
-     */
+    /* Let the next block know its prev neighbor is in use. */
     struct block *bn = blknextadj(bp);
     if (bn)
         blksetprevused(bn);
@@ -245,8 +236,6 @@ void blkfree(struct block *bp) {
     blkinit(bp, sp, blksize(bp));
     blkprepend(bp);
 
-    /* Tell next physical block that prev is free.
-     */
     struct block *bn = blknextadj(bp);
     if (bn)
         blksetprevfree(bn);
@@ -320,8 +309,7 @@ struct block *blkprevadj(struct block *bp) {
     struct span *sp = bp->owner;
     usz *ft = blkprevfoot(bp);
 
-    /* ft landed inside the span header. bp is the first block in the span.
-     */
+    /* ft landed inside the span header. bp is the first block in the span. */
     if ((uptr)ft < (uptr)sp + SPAN_HDR_PADSZ)
         return 0;
 
@@ -339,12 +327,10 @@ struct block *blknextadj(struct block *bp) {
     struct span *sp = bp->owner;
     uptr next = (uptr)bp + blksize(bp);
 
-    /* Header and payload must be aligned for that to work.
-     */
+    /* Header and payload must be aligned for that to work. */
     assert_aligned(next, ALIGNMENT);
 
-    /* The final block is given the last few bytes in the span.
-     */
+    /* The final block is given the last few bytes in the span. */
     if (next >= (uptr)sp + sp->size)
         return 0;
     return (struct block *)next;
@@ -381,8 +367,7 @@ void coalesce(struct block *bp, struct block *bq) {
     assert(blknextadj(bp) == bq);
     assert(blkisfree(bp) && blkisfree(bq));
 
-    /* Remove bq from the free list to ensure it's no longer allocated.
-     */
+    /* Remove bq from the free list to ensure it's no longer allocated. */
     sever_block(bq);
 
     usz bsz = blksize(bp) + blksize(bq);
@@ -399,8 +384,7 @@ void *m_malloc(usz size) {
     if (size == 0)
         return 0;
 
-    /* Determine the page size on first call.
-     */
+    /* Determine the page size on first call. */
     if (pagesize == 0)
         pagesize = getpagesize();
 
@@ -409,8 +393,7 @@ void *m_malloc(usz size) {
      */
     usz gross = gross_size(size);
 
-    /* Try to find a block with enough space to serve the request.
-     */
+    /* Try to find a block with enough space to serve the request. */
     struct block *bp = blkfind(gross);
 
     /* If no existing span has enough space to serve the request, or if there
@@ -422,8 +405,7 @@ void *m_malloc(usz size) {
         if (sp == 0)     /* mmap(2) failed, not my fault */
             return 0;
 
-        /* The fresh span has a single free block the size of the entire span.
-         */
+        /* The fresh span has a single free block the size of the entire span. */
         bp = sp->free_list;
     }
 
@@ -451,8 +433,7 @@ void m_free(void *p) {
     assert(!blkisfree(bp));
     blkfree(bp);
 
-    /* Coalesce in both directions.
-     */
+    /* Coalesce in both directions. */
     struct block *bq = blknextadj(bp);
     if (bq && blkisfree(bq))
         coalesce(bp, bq);
@@ -465,8 +446,7 @@ void m_free(void *p) {
         }
     }
 
-    /* Poison the block for visibility; skip the footer.
-     */
+    /* Poison the block for visibility; skip the footer. */
     memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ - sizeof(usz));
 }
 
@@ -542,8 +522,7 @@ void *m_realloc(void *p, usz size) {
         blkprepend(bp);
         blksetprevused(bp);     /* The reduced block is still in use */
 
-        /* Tell the next adjacent block about the new free block before it.
-         */
+        /* Tell the next adjacent block about the new free block before it. */
         struct block *bq = blknextadj(bp);
         if (bq) {
             blksetprevfree(bq);
@@ -556,8 +535,7 @@ void *m_realloc(void *p, usz size) {
                 coalesce(bp, bq);   /* Extend bp to take over bq. */
         }
 
-        /* p still points to the original payload, now truncated.
-         */
+        /* p still points to the original payload, now truncated. */
         return p;
     }
 
@@ -591,8 +569,7 @@ void *m_realloc(void *p, usz size) {
         return p;
     }
 
-    /* Make a new allocation and move the entire payload.
-     */
+    /* Make a new allocation and move the entire payload. */
     void *q = m_malloc(size);
     if (!q)
         return 0;
