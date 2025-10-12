@@ -362,7 +362,7 @@ void *payload_from_block(struct block *bp) {
  * is no longer a valid block pointer after calling coalesce(), since it points
  * into the middle of a block.
  */
-void coalesce(struct block *bp, struct block *bq) {
+void blkcoalesce(struct block *bp, struct block *bq) {
     assert(bp && bq);
     assert(blknextadj(bp) == bq);
     assert(blkisfree(bp) && blkisfree(bq));
@@ -373,6 +373,25 @@ void coalesce(struct block *bp, struct block *bq) {
     usz bsz = blksize(bp) + blksize(bq);
     blksetsize(bp, bsz);
     *blkfoot(bp) = bsz;
+}
+
+/* Try to coalesce a free block in both directions.
+ */
+struct block *coalesce(struct block *bp) {
+    assert(bp && blkisfree(bp));
+
+    struct block *bq = blknextadj(bp);
+    if (bq && blkisfree(bq))
+        blkcoalesce(bp, bq);
+
+    if (blkisprevfree(bp)) {
+        if ((bq = blkprevadj(bp))) {
+            blkcoalesce(bq, bp); /* Intentional: extend bq over bp */
+            bp = bq;
+        }
+    }
+
+    return bp;
 }
 
 /* Serve a request for memory for the caller. Search for an already mmap'd span
@@ -434,17 +453,8 @@ void m_free(void *p) {
     blkfree(bp);
 
     /* Coalesce in both directions. */
-    struct block *bq = blknextadj(bp);
-    if (bq && blkisfree(bq))
-        coalesce(bp, bq);
-
-    if (blkisprevfree(bp)) {
-        if ((bq = blkprevadj(bp))) {
-            coalesce(bq, bp);
-            bp = bq; /* Make bp point to a valid free block again. */
-            p = payload_from_block(bp); /* Same thing for p. */
-        }
-    }
+    bp = coalesce(bp);
+    p = payload_from_block(bp);
 
     /* Poison the block for visibility; skip the footer. */
     memset(p, POISON_BYTE, blksize(bp) - BLOCK_HDR_PADSZ - sizeof(usz));
@@ -520,13 +530,7 @@ void *realloc_truncate(struct block *bp, usz size) {
     struct block *bq = blknextadj(bp);
     if (bq) {
         blksetprevfree(bq);
-
-        /* Creating a new free block may break the invariant that there can
-         * be no two free adjacent blocks. Coalesce to maintain that
-         * invariant.
-         */
-        if (blkisfree(bq))
-            coalesce(bp, bq);   /* Extend bp to take over bq. */
+        bp = coalesce(bp);
     }
 
     /* bp still owns the original payload, now truncated. */
