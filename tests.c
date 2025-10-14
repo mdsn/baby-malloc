@@ -560,6 +560,33 @@ void test_realloc_nosize(void) {
 
 void test_realloc_truncate(void) {
     printf("==== test_realloc_truncate ====\n");
+    usz size = 1234;
+    usz gross = gross_size(size);
+
+    char *p = m_malloc(size);
+    assert(p);
+    assert_ptr_aligned(p, ALIGNMENT);
+
+    struct block *bp = plblk(p);
+    struct span *sp = bp->owner;
+    assert(bp && blksize(bp) == gross);
+    assert_ptr_aligned(bp, ALIGNMENT);
+
+    usz nsize = 500;
+    usz ngross = gross_size(nsize);
+    char *q = m_realloc(p, nsize);
+    assert(q == p);
+
+    struct block *bq = plblk(q);
+    assert(bp == bq);
+    assert(blksize(bp) == ngross);
+
+    bq = blknextadj(bp);
+    assert(bq && blkisfree(bq) && !blkisprevfree(bq));
+    assert(blksize(bq) == gross - blksize(bp));
+    assert(sp->free_list == bq);
+
+    spfree(sp);
 }
 
 void test_realloc_extend_with_space(void) {
