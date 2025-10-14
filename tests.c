@@ -633,4 +633,43 @@ void test_realloc_extend_with_space(void) {
 
 void test_realloc_extend_move(void) {
     printf("==== test_realloc_extend_move ====\n");
+    usz size = 1024;
+    usz gross = gross_size(size);
+
+    char *p1 = m_malloc(size);
+    char *p2 = m_malloc(size);
+    assert(p1 && p2);
+
+    struct block *b1 = plblk(p1);
+    struct block *b2 = plblk(p2);
+    assert(b1->owner == b2->owner);
+
+    /* sp -> [free] -> b2 -> b1 */
+    struct span *sp = b1->owner;
+    /* the big "antiwilderness" at the beginning of the span */
+    struct block *bp = sp->free_list;
+
+    m_free(p1); /* leave a bit over 1kb free after b2 */
+
+    usz nsize = 4096; /* won't fit */
+    usz ngross = gross_size(4096);
+    char *q2 = m_realloc(p2, nsize);
+    assert(q2 && q2 != p2);
+    struct block *c2 = plblk(q2);
+
+    /* b2 was freed, coalesced with b1, and put on the free list */
+    assert(blkisfree(b2) && blksize(b2) == 2 * gross);
+    assert(!blknextadj(b2)); /* b2 is at the end of the span now */
+    assert(sp->free_list == b2);
+
+    /* there was still enough space in sp to serve a 4kb request */
+    assert(c2->owner == sp);
+    /* it happened to land right before p2, in the free space */
+    assert(blknextadj(bp) == c2 && blknextadj(c2) == b2);
+    assert(blkisprevfree(c2) && !blkisprevfree(b2));
+
+    /* all span - span header - c2 - b1 - b2 */
+    assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ - ngross - 2 * gross);
+
+    spfree(sp);
 }
