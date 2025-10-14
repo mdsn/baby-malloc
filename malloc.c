@@ -449,8 +449,8 @@ void *m_calloc(usz n, usz s) {
  * Otherwise, realloc() creates a new allocation, copies all the bytes from the
  * original allocation to the new one, and frees the old allocation. If p is
  * NULL, realloc() just returns a pointer to a new allocation for size bytes,
- * as if malloc(size) had been called. If p is not NULL and size is zero, a new
- * minimum-sized allocation is created and the original allocation is freed.
+ * as if malloc(size) had been called. If p is not NULL and size is zero, the
+ * allocation is truncated in place to a minimum-sized block.
  *
  * The returned allocation is not zeroed out.
  */
