@@ -8,6 +8,13 @@ and `realloc()` with guaranteed alignment to 16 bytes.
 
 Build with `make`, run tests with `make test`.
 
+The macOS dynamic loader can be forced to run these `malloc` and friends when a
+binary requests them by inserting the dylib like so:
+
+    $ DYLD_INSERT_LIBRARIES=$PWD/malloc.dylib rg TODO
+
+See `interpose.c` and http://toves.freeshell.org/interpose/ for details.
+
 ## Internals
 
 Since `mmap(2)` provisions memory in multiples of the page size, the allocator
