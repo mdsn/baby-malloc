@@ -619,9 +619,12 @@ void test_realloc_extend_with_space(void) {
 
     struct block *c2 = plblk(q2);
     assert(blksize(c2) == ngross);
+    assert(b2 == c2);
 
+    /* b1 is reduced and still in the free list */
     struct block *c1 = blknextadj(c2);
     assert(blkisfree(c1) && sp->free_list == c1);
+    assert(!blkisprevfree(c1));
     /* c1 and c2 still add up to the original space of b1 and b2 */
     assert(c1 && blksize(c2) + blksize(c1) == 2*gross);
 
