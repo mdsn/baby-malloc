@@ -30,6 +30,18 @@ the minimum span size. The minimum block size is 64 bytes. If a block split
 would leave a smaller piece than that, the fragmentation is taken and the
 entire space is allocated.
 
+A cache of 1 span is kept even if it has no blocks allocated. Otherwise, when
+freeing a block, if its span block count drops to 0, the span is returned with
+`munmap(2)`.
+
+### `struct span`
+
+Span headers carry a raw `size`, `prev`/`next` pointers, a `struct block *` to
+the beginning of their free list, which may be `NULL` if the entire span is in
+use, and a `blkcount` that keeps track of the number of allocated blocks in the
+span. All spans but the last are returned to the OS with `munmap(2)` when this
+count drops to 0.
+
 ### `struct block`
 
 Block headers carry a `size` field; since their size is a multiple of 16, the
