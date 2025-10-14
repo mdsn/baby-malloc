@@ -32,6 +32,7 @@ struct block;
  */
 void *m_malloc(size_t n);
 void *m_calloc(size_t n, size_t s);
+void *m_realloc(void *p, size_t size);
 void m_free(void *p);
 
 #endif

@@ -23,6 +23,11 @@ void test_blkprevfoot(void);
 void test_blkprevadj(void);
 void test_coalesce(void);
 void test_calloc(void);
+void test_realloc_noalloc(void);
+void test_realloc_nosize(void);
+void test_realloc_truncate(void);
+void test_realloc_extend_with_space(void);
+void test_realloc_extend_move(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -52,6 +57,11 @@ int main(void) {
     test_blkprevadj();
     test_coalesce();
     test_calloc();
+    test_realloc_noalloc();
+    test_realloc_nosize();
+    test_realloc_truncate();
+    test_realloc_extend_with_space();
+    test_realloc_extend_move();
 
     return 0;
 }
@@ -498,4 +508,38 @@ void test_calloc(void) {
     assert(!p[0] && !p[N - 1] && !p[1234] && !p[123456]);
 
     spfree(sp);
+}
+
+void test_realloc_noalloc(void) {
+    printf("==== test_realloc_noalloc ====\n");
+    usz size = 123;
+    usz gross = gross_size(123);
+
+    char *p = m_realloc(0, size);
+    assert(p);
+    assert_ptr_aligned(p, ALIGNMENT);
+
+    struct block *bp = plblk(p);
+    assert(bp);
+    assert_ptr_aligned(bp, ALIGNMENT);
+
+    assert(blksize(bp) == gross);
+
+    spfree(bp->owner);
+}
+
+void test_realloc_nosize(void) {
+    printf("==== test_realloc_nosize ====\n");
+}
+
+void test_realloc_truncate(void) {
+    printf("==== test_realloc_truncate ====\n");
+}
+
+void test_realloc_extend_with_space(void) {
+    printf("==== test_realloc_extend_with_space ====\n");
+}
+
+void test_realloc_extend_move(void) {
+    printf("==== test_realloc_extend_move ====\n");
 }
