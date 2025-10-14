@@ -6,6 +6,7 @@
 #include "internal.h"
 
 extern int pagesize; /* defined in malloc.c */
+extern int span_count; /* defined in malloc.c */
 extern struct span *base; /* defined in malloc.c */
 
 void test_minimum_span_allocation(void);
@@ -28,6 +29,7 @@ void test_realloc_nosize(void);
 void test_realloc_truncate(void);
 void test_realloc_extend_with_space(void);
 void test_realloc_extend_move(void);
+void test_free_unmaps_span(void);
 
 int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
@@ -62,6 +64,7 @@ int main(void) {
     test_realloc_truncate();
     test_realloc_extend_with_space();
     test_realloc_extend_move();
+    test_free_unmaps_span();
 
     return 0;
 }
@@ -719,4 +722,60 @@ void test_realloc_extend_move(void) {
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ - ngross - 2 * gross);
 
     spfree(sp);
+}
+
+void test_free_unmaps_span(void) {
+    printf("==== test_free_unmaps_span ====\n");
+    /* free() will spfree() all but the last span when their count of blocks in
+     * use reaches 0.
+     */
+
+    usz size = 1024;
+    char *p = m_malloc(size);
+
+    struct block *bp = plblk(p);
+    struct span *sp = bp->owner;
+    assert(sp->blkcount == 1);
+
+    /* free() will not return sp because it is the only remaining span and
+     * SPAN_CACHE == 1.
+     */
+    m_free(p);
+    assert(base == sp);
+    assert(sp->blkcount == 0);
+
+    /* Request big sizes to fill them up with a single allocation. */
+    size = MIN_MMAPSZ - SPAN_HDR_PADSZ - BLOCK_HDR_PADSZ;
+    p = m_malloc(size);
+    char *q = m_malloc(size);
+    char *r = m_malloc(size);
+
+    bp = plblk(p);
+    struct block *bq = plblk(q);
+    struct block *br = plblk(r);
+
+    struct span *sq = bq->owner;
+    struct span *sr = br->owner;
+
+    /* Three different spans, sp reused. */
+    assert(span_count == 3);
+    assert(bp->owner == sp);
+    assert(sq != sp && sr != sp && sq != sr);
+
+    /* All three spans filled to the brim. */
+    assert(!sp->free_list);
+    assert(!sq->free_list);
+    assert(!sr->free_list);
+
+    m_free(r);
+    assert(span_count == 2);
+    m_free(q);
+    assert(span_count == 1);
+    m_free(p);
+    assert(span_count == 1); /* kept */
+    assert(base == sp);
+    assert(sp->free_list);
+
+    spfree(sp); /* manual cleanup for tests */
+    assert(span_count == 0);
 }

@@ -76,6 +76,9 @@ struct block *spfirstblk(struct span *sp) {
     return (struct block *)((char *)sp + SPAN_HDR_PADSZ);
 }
 
+/* Request enough pages with mmap(2) to fit an allocation of gross bytes as
+ * well as a span header.
+ */
 struct span *spalloc(usz gross) {
     /* mmap obtains memory in multiples of the page size, padding up the
      * requested size if necessary. Therefore it's in our best interest to
@@ -85,7 +88,7 @@ struct span *spalloc(usz gross) {
      * To minimize system calls for small allocations, a minimum allocation
      * size of MIN_MMAPSZ is requested.
      */
-    usz spsz = usz_max(gross, MIN_MMAPSZ);
+    usz spsz = usz_max(gross + (usz)SPAN_HDR_PADSZ, MIN_MMAPSZ);
     spsz = ALIGN_UP(spsz, pagesize);
 
     /* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
@@ -126,13 +129,13 @@ void spsever(struct span *sp) {
         sp->prev = 0;
         sp->next = 0;
     }
-    span_count--;
 }
 
 /* Return an entire span to the OS.
  * XXX return the value from munmap?
  */
 void spfree(struct span *sp) {
+    span_count--;
     spsever(sp);
     munmap(sp, sp->size);
 }
@@ -431,6 +434,12 @@ void m_free(void *p) {
     struct block *bp = plblk(p);
     assert(!blkisfree(bp));
     blkfree(bp);
+
+    struct span *sp = bp->owner;
+    if (sp->blkcount == 0 && span_count > SPAN_CACHE) {
+        spfree(sp);
+        return;
+    }
 
     /* Coalesce in both directions. */
     bp = coalesce(bp);
