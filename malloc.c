@@ -379,7 +379,8 @@ void *m_malloc(usz size) {
     /* Calculate how many bytes are needed to hold the requested memory along
      * with padding and metadata.
      */
-    usz gross = gross_size(size);
+    usz gross = blksizerequest(size);
+    assert(gross >= MIN_BLKSZ);
 
     /* Try to find a block with enough space to serve the request. */
     struct block *bp = blkfind(gross);
@@ -474,8 +475,9 @@ void *m_realloc(void *p, usz size) {
 void *realloc_truncate(struct block *bp, usz size) {
     assert(bp && !blkisfree(bp));
 
-    usz gross = gross_size(size);
-    assert(gross <= blksize(bp));
+    void *p = blkpayload(bp);
+    usz gross = blksizerequest(size);
+    assert(MIN_BLKSZ <= gross && gross <= blksize(bp));
 
     /* Split if the resulting block and the resized block are big enough. */
     if (blksize(bp) - gross < MIN_BLKSZ || gross < MIN_BLKSZ)
@@ -498,14 +500,14 @@ void *realloc_truncate(struct block *bp, usz size) {
         bp = coalesce(bp);
     }
 
-    /* bp still owns the original payload, now truncated. */
-    return blkpayload(bp);
+    /* p still points to the original payload, now truncated. */
+    return p;
 }
 
 void *realloc_extend(struct block *bp, usz size) {
     assert(bp && !blkisfree(bp));
 
-    usz gross = gross_size(size);
+    usz gross = blksizerequest(size);
     assert(blksize(bp) < gross);
 
     void *p = blkpayload(bp);

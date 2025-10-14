@@ -513,7 +513,7 @@ void test_calloc(void) {
 void test_realloc_noalloc(void) {
     printf("==== test_realloc_noalloc ====\n");
     usz size = 123;
-    usz gross = gross_size(123);
+    usz gross = gross_size(size);
 
     char *p = m_realloc(0, size);
     assert(p);
@@ -530,6 +530,32 @@ void test_realloc_noalloc(void) {
 
 void test_realloc_nosize(void) {
     printf("==== test_realloc_nosize ====\n");
+    usz size = 1234;
+    usz gross = gross_size(size);
+
+    char *p = m_malloc(size);
+    assert(p);
+    assert_ptr_aligned(p, ALIGNMENT);
+
+    struct block *bp = plblk(p);
+    struct span *sp = bp->owner;
+    assert(bp && blksize(bp) == gross);
+    assert_ptr_aligned(bp, ALIGNMENT);
+
+    char *q = m_realloc(p, 0);
+    assert(q == p); /* payload did not move */
+
+    struct block *bq = plblk(q);
+    assert(bp == bq); /* block header did not move */
+    assert(blksize(bp) == MIN_BLKSZ);
+
+    /* new block was split off of bp--big enough */
+    bq = blknextadj(bq);
+    assert(bq && blkisfree(bq) && !blkisprevfree(bq));
+    assert(blksize(bq) == gross - blksize(bp));
+    assert(sp->free_list == bq);
+
+    spfree(sp);
 }
 
 void test_realloc_truncate(void) {

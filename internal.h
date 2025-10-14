@@ -114,6 +114,9 @@ struct block *blkprevadj(struct block *bp);
 struct block *blknextadj(struct block *bp);
 struct block *blksplit(struct block *bp, usz gross);
 
+static inline usz blksizerequest(usz size) {
+    return usz_max(MIN_BLKSZ, gross_size(size));
+}
 static inline void *blkpayload(struct block *bp) {
     return (char *)bp + BLOCK_HDR_PADSZ;
 }
