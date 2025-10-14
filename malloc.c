@@ -512,7 +512,9 @@ void *realloc_extend(struct block *bp, usz size) {
 
     void *p = blkpayload(bp);
     struct block *bq = blknextadj(bp);
-    if (bq && blkisfree(bq) && blksize(bq) >= gross) {
+
+    usz diff = blkisfree(bq) ? gross - blksize(bp) : 0;
+    if (bq && blkisfree(bq) && blksize(bq) >= diff) {
         /* Extend bp over bq, splitting if there's enough space left.
          *
          * [    bp     ][   bq   ]

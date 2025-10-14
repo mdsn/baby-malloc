@@ -591,6 +591,41 @@ void test_realloc_truncate(void) {
 
 void test_realloc_extend_with_space(void) {
     printf("==== test_realloc_extend_with_space ====\n");
+    usz size = 1024;
+    usz gross = gross_size(size);
+
+    char *p1 = m_malloc(size);
+    char *p2 = m_malloc(size);
+    assert(p1 && p2);
+
+    struct block *b1 = plblk(p1);
+    struct block *b2 = plblk(p2);
+    assert(b1->owner == b2->owner);
+    assert(blksize(b1) == gross && blksize(b2) == gross);
+
+    /* sp -> [free] -> b2 -> b1 */
+    struct span *sp = b1->owner;
+    m_free(p1); /* free the end of the span so b2 can extend in place */
+
+    assert(sp->free_list == b1);
+    assert(blknextadj(b2) == b1); /* can't use blkprevadj(b1) -- b2 is in use */
+    assert(blkisfree(b1) && !blkisprevfree(b1));
+
+    usz nsize = 1500;
+    usz ngross = gross_size(nsize);
+
+    char *q2 = m_realloc(p2, nsize);
+    assert(q2 == p2);
+
+    struct block *c2 = plblk(q2);
+    assert(blksize(c2) == ngross);
+
+    struct block *c1 = blknextadj(c2);
+    assert(blkisfree(c1) && sp->free_list == c1);
+    /* c1 and c2 still add up to the original space of b1 and b2 */
+    assert(c1 && blksize(c2) + blksize(c1) == 2*gross);
+
+    spfree(sp);
 }
 
 void test_realloc_extend_move(void) {
