@@ -22,7 +22,7 @@ struct span {
     struct span *prev;
     struct span *next;
     struct block *free_list;
-                                /* XXX: count of blocks in use? */
+    u32 blkcount;               /* number of allocated blocks */
 };
 
 struct block {
@@ -31,6 +31,14 @@ struct block {
     struct block *next;         /* next free block */
     struct span *owner;         /* span that holds ths block */
     u32 magic;                  /* 0xbebebebe */
+};
+
+/* Keep at most SPAN_CACHE spans free to serve allocation requests. When blocks
+ * are freed that leave their span entirely unused (blocks_used == 0), spans
+ * above SPAN_CACHE are munmapped.
+ */
+enum {
+    SPAN_CACHE = 1,
 };
 
 /* The block size is a multiple of ALIGNMENT = 16, so its binary representation
@@ -67,7 +75,7 @@ enum {
  */
 STATIC_ASSERT((SPAN_HDR_PADSZ % ALIGNMENT) == 0, span_header_size);
 STATIC_ASSERT((BLOCK_HDR_PADSZ % ALIGNMENT) == 0, block_header_size);
-STATIC_ASSERT(SPAN_HDR_PADSZ == 32, span_size_drifted);
+STATIC_ASSERT(SPAN_HDR_PADSZ == 48, span_size_drifted);
 STATIC_ASSERT(BLOCK_HDR_PADSZ == 48, block_size_drifted);
 STATIC_ASSERT((MIN_MMAPSZ & (MIN_MMAPSZ - 1)) == 0, min_mmapsz_power_of_two);
 

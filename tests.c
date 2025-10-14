@@ -79,12 +79,14 @@ void test_minimum_span_allocation(void) {
     assert(sp && sp->size >= gross);
     assert(!sp->prev && !sp->next);
     assert_aligned(sp->size, pagesize);
+    assert(!sp->blkcount);
 
     struct block *bp = blkfind(gross);
     assert(bp && bp->owner == sp);
     assert(*blkfoot(bp) == blksize(bp));
 
     struct block *b1 = blkalloc(gross, bp);
+    assert(sp->blkcount == 1);
     assert(blksize(bp) + blksize(b1) + SPAN_HDR_PADSZ == sp->size);
     assert(blkisfree(bp) && !blkisfree(b1));
     assert(blkisprevfree(b1)); /* Here prev(b1) == bp */
@@ -93,6 +95,7 @@ void test_minimum_span_allocation(void) {
     assert(blksize(bp) + blksize(b1) + blksize(b2) + SPAN_HDR_PADSZ == sp->size);
     assert(blkisfree(bp) && !blkisfree(b2));
     assert(blkisprevfree(b2) && !blkisprevfree(b1)); /* Now prev(b1) == b2 */
+    assert(sp->blkcount == 2);
 
     usz used = blksize(b1) + blksize(b2);
     usz rest = sp->size - SPAN_HDR_PADSZ - used;
@@ -112,6 +115,7 @@ void test_minimum_span_allocation(void) {
     assert(!blkisprevfree(b2) && !blkisprevfree(b1));
     assert(blksize(bp) + blksize(b1) + blksize(b2) + SPAN_HDR_PADSZ == sp->size);
     assert(!sp->free_list); /* All span is used, no more free blocks. */
+    assert(sp->blkcount == 3);
 
     /* Clean up. */
     spfree(sp);
@@ -125,6 +129,7 @@ void test_large_span_allocation(void) {
     struct span *sp = spalloc(gross);
     assert(sp && sp->size >= gross);
     assert_aligned(sp->size, pagesize);
+    assert(sp->blkcount == 0);
 
     /* Clean up. */
     spfree(sp);
@@ -135,6 +140,7 @@ void test_free_only_span(void) {
     usz gross = gross_size(64);
     struct span *sp = spalloc(gross);
 
+    assert(sp->blkcount == 0);
     assert(sp && sp->size == MIN_MMAPSZ);
     /* sp is the only span on the global list. This actually depends on the
      * other tests cleaning up after themselves.
@@ -144,7 +150,9 @@ void test_free_only_span(void) {
     spfree(sp);
 
     assert(!base);
-    /* sp has been munmapped--reading through it will segfault. */
+    /* sp has been munmapped--reading through it will segfault. This is an
+     * artificial test because cache of SPAN_CACHE spans is kept once
+     * allocated. */
 }
 
 void test_alloc_multiple_spans(void) {
@@ -158,6 +166,10 @@ void test_alloc_multiple_spans(void) {
     assert(s2 && s3->next == s2 && s2->prev == s3);
     assert(s1 && s2->next == s1 && s1->prev == s2);
     assert(!s3->prev && !s1->next);
+
+    assert(s1->blkcount == 0);
+    assert(s2->blkcount == 0);
+    assert(s3->blkcount == 0);
 
     spfree(s1);
     spfree(s2);
@@ -242,6 +254,8 @@ void test_free_single_block(void) {
     assert(*blkfoot(bp) == blksize(bp)); /* bp shrunk */
     assert_ptr_aligned(b1, ALIGNMENT);
 
+    assert(sp->blkcount == 1);
+
     /* This is the payload pointer that malloc would give to a caller.
      */
     char *p = blkpayload(b1);
@@ -254,6 +268,7 @@ void test_free_single_block(void) {
     /* This coalesces b1 into bp. */
     m_free(p);
 
+    /* SPAN_CACHE == 1, so this span stays even though it's unused. */
     assert(sp->free_list == bp);
     assert(!bp->next);
     assert(*blkfoot(bp) == bp->owner->size - SPAN_HDR_PADSZ);
@@ -316,7 +331,8 @@ void test_blkfoot(void) {
     struct block *adjbp = (struct block *)((uptr)bpfoot + sizeof(usz));
     assert(adjbp == b2);
 
-    /* Get to b2 foot from b1 header.
+    /* Get to b2 foot from b1 header. This only tests the blkfoot() location;
+     * reading from it on an allocated block would be problematic.
      */
     usz *b2foot = blkfoot(b2);
     usz *b1prev = (usz *)((uptr)b1 - sizeof(usz));
@@ -330,13 +346,13 @@ void test_blksplit(void) {
     usz gross = gross_size(4096);
     struct span *sp = spalloc(gross);
     struct block *bp = blkfind(gross);
-
     struct block *b1 = blksplit(bp, gross);
 
     assert(b1 && blksize(b1) == gross);
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ - gross);
     assert(*blkfoot(bp) == blksize(bp));
     assert(blkisprevfree(b1));
+    /* split by itself does not change the span's blkcount */
 
     spfree(sp);
 }
@@ -352,6 +368,7 @@ void test_isprevfree_bit(void) {
     struct block *b2 = blkalloc(gross, bp);
     struct block *b3 = blkalloc(gross, bp);
 
+    assert(sp->blkcount == 3);
     assert(bp && b1 && b2 && b3);
     assert(blkisfree(bp));
     assert(!blkisfree(b3) && blkisprevfree(b3));
@@ -360,6 +377,7 @@ void test_isprevfree_bit(void) {
 
     blkfree(b2);
 
+    assert(sp->blkcount == 2);
     assert(blkisfree(b2) && !blkisprevfree(b2));
     assert(!blkisfree(b1) && blkisprevfree(b1));
 
@@ -376,9 +394,12 @@ void test_blkprevfoot(void) {
     struct block *b1 = blkalloc(gross, bp);
     struct block *b2 = blkalloc(gross, bp);
 
+    assert(sp->blkcount == 2);
+
     blkfree(b2);
     blkfree(b1);
 
+    assert(sp->blkcount == 0);
     assert(*blkprevfoot(b1) == blksize(b2));
     assert(*blkprevfoot(b1) == *blkfoot(b2));
     assert(*blkprevfoot(b2) == blksize(bp));
@@ -397,9 +418,12 @@ void test_blkprevadj(void) {
     struct block *b1 = blkalloc(gross, bp);
     struct block *b2 = blkalloc(gross, bp);
 
+    assert(sp->blkcount == 2);
+
     blkfree(b1);
     blkfree(b2);
 
+    assert(sp->blkcount == 0);
     assert(blkprevadj(b1) == b2);
     assert(blkprevadj(b2) == bp);
     assert(blkprevadj(bp) == 0);
@@ -418,6 +442,8 @@ void test_coalesce(void) {
     struct block *b2 = blkalloc(gross, bp);
     struct block *b3 = blkalloc(gross, bp);
 
+    assert(sp->blkcount == 3);
+
     usz bpsz = blksize(bp);
 
     void *p1 = blkpayload(b1);
@@ -432,6 +458,7 @@ void test_coalesce(void) {
     assert(sp->free_list == bp);
     assert(blksize(bp) == bpsz + gross);
     assert(bp->next == 0);
+    assert(sp->blkcount == 2);
 
     /* Does not coalesce -- b1 is last and b2 is in use.
      * Free list after free: sp -> b1 -> bp
@@ -440,12 +467,14 @@ void test_coalesce(void) {
     m_free(p1);
     assert(sp->free_list == b1);
     assert(b1->next == bp && bp->next == 0);
+    assert(sp->blkcount == 1);
 
     /* Should coalesce everything back into bp.
      */
     m_free(p2);
     assert(sp->free_list == bp && !bp->next);
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
+    assert(sp->blkcount == 0);
 
     /* A different freeing order.
      * Physical layout: bp -> b4 -> b3 -> b2 -> b1.
@@ -457,23 +486,28 @@ void test_coalesce(void) {
     b3 = blkalloc(gross, bp);
     struct block *b4 = blkalloc(gross, bp);
 
+    assert(sp->blkcount == 4);
+
     bpsz = blksize(bp);
 
     m_free(blkpayload(b2));
     assert(blkisfree(b2) && blksize(b2) == *blkfoot(b2));
     assert(sp->free_list == b2 && b2->next == bp && !bp->next);
+    assert(sp->blkcount == 3);
 
     m_free(blkpayload(b4));
     /* No change to the free list */
     assert(sp->free_list == b2 && b2->next == bp && !bp->next);
     assert(blksize(bp) == bpsz + gross);
     assert(blksize(bp) == *blkfoot(bp));
+    assert(sp->blkcount == 2);
 
     m_free(blkpayload(b1));
     /* No change to the free list, but b2 changed */
     assert(sp->free_list == b2 && b2->next == bp && !bp->next);
     assert(blksize(b2) == 2 * gross);
     assert(blksize(b2) == *blkfoot(b2));
+    assert(sp->blkcount == 1);
 
     /* Physical layout: bp (free) -> b3 (used) -> b2.
      * Free list: sp -> b2 -> bp
@@ -484,6 +518,7 @@ void test_coalesce(void) {
     assert(blksize(bp) == bpsz + 4 * gross);
     assert(blksize(bp) == *blkfoot(bp));
     assert(blksize(bp) == sp->size - SPAN_HDR_PADSZ);
+    assert(sp->blkcount == 0);
 
     spfree(sp);
 }
@@ -503,6 +538,7 @@ void test_calloc(void) {
 
     assert_aligned(blksize(bp), ALIGNMENT);
     assert_aligned(sp->size, pagesize);
+    assert(sp->blkcount == 1);
 
     assert(blksize(bp) >= N * SZ);
     assert(!p[0] && !p[N - 1] && !p[1234] && !p[123456]);
@@ -522,10 +558,11 @@ void test_realloc_noalloc(void) {
     struct block *bp = plblk(p);
     assert(bp);
     assert_ptr_aligned(bp, ALIGNMENT);
-
     assert(blksize(bp) == gross);
 
-    spfree(bp->owner);
+    struct span *sp = bp->owner;
+    assert(sp->blkcount == 1);
+    spfree(sp);
 }
 
 void test_realloc_nosize(void) {
@@ -539,11 +576,13 @@ void test_realloc_nosize(void) {
 
     struct block *bp = plblk(p);
     struct span *sp = bp->owner;
+    assert(sp->blkcount == 1);
     assert(bp && blksize(bp) == gross);
     assert_ptr_aligned(bp, ALIGNMENT);
 
     char *q = m_realloc(p, 0);
     assert(q == p); /* payload did not move */
+    assert(sp->blkcount == 1);
 
     struct block *bq = plblk(q);
     assert(bp == bq); /* block header did not move */
@@ -569,6 +608,7 @@ void test_realloc_truncate(void) {
 
     struct block *bp = plblk(p);
     struct span *sp = bp->owner;
+    assert(sp->blkcount == 1);
     assert(bp && blksize(bp) == gross);
     assert_ptr_aligned(bp, ALIGNMENT);
 
@@ -576,6 +616,7 @@ void test_realloc_truncate(void) {
     usz ngross = gross_size(nsize);
     char *q = m_realloc(p, nsize);
     assert(q == p);
+    assert(sp->blkcount == 1);
 
     struct block *bq = plblk(q);
     assert(bp == bq);
@@ -605,8 +646,10 @@ void test_realloc_extend_with_space(void) {
 
     /* sp -> [free] -> b2 -> b1 */
     struct span *sp = b1->owner;
+    assert(sp->blkcount == 2);
     m_free(p1); /* free the end of the span so b2 can extend in place */
 
+    assert(sp->blkcount == 1);
     assert(sp->free_list == b1);
     assert(blknextadj(b2) == b1); /* can't use blkprevadj(b1) -- b2 is in use */
     assert(blkisfree(b1) && !blkisprevfree(b1));
@@ -616,6 +659,7 @@ void test_realloc_extend_with_space(void) {
 
     char *q2 = m_realloc(p2, nsize);
     assert(q2 == p2);
+    assert(sp->blkcount == 1);
 
     struct block *c2 = plblk(q2);
     assert(blksize(c2) == ngross);
@@ -646,10 +690,12 @@ void test_realloc_extend_move(void) {
 
     /* sp -> [free] -> b2 -> b1 */
     struct span *sp = b1->owner;
+    assert(sp->blkcount == 2);
     /* the big "antiwilderness" at the beginning of the span */
     struct block *bp = sp->free_list;
 
     m_free(p1); /* leave a bit over 1kb free after b2 */
+    assert(sp->blkcount == 1);
 
     usz nsize = 4096; /* won't fit */
     usz ngross = gross_size(4096);
@@ -664,6 +710,7 @@ void test_realloc_extend_move(void) {
 
     /* there was still enough space in sp to serve a 4kb request */
     assert(c2->owner == sp);
+    assert(sp->blkcount == 1); /* realloc did not move to a new span */
     /* it happened to land right before p2, in the free space */
     assert(blknextadj(bp) == c2 && blknextadj(c2) == b2);
     assert(blkisprevfree(c2) && !blkisprevfree(b2));

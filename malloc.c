@@ -65,6 +65,10 @@ struct span *base = 0;
  */
 int pagesize = 0;
 
+/* The number of spans in the list.
+ */
+int span_count = 0;
+
 /* Get a pointer to the first block header after a span header, considering
  * padding.
  */
@@ -91,8 +95,10 @@ struct span *spalloc(usz gross) {
 
     if (sp == MAP_FAILED)
         return 0;
+    span_count++;
 
     sp->size = spsz;
+    sp->blkcount = 0;
     sp->next = base;    /* Prepend the span to the list. */
     if (sp->next)
         sp->next->prev = sp;
@@ -120,10 +126,10 @@ void spsever(struct span *sp) {
         sp->prev = 0;
         sp->next = 0;
     }
+    span_count--;
 }
 
 /* Return an entire span to the OS.
- * Eventually this could assert on a count of free blocks.
  * XXX return the value from munmap?
  */
 void spfree(struct span *sp) {
@@ -205,6 +211,8 @@ struct block *blkalloc(usz gross, struct block *bp) {
         bp = blksplit(bp, gross);
     }
 
+    bp->owner->blkcount++;
+
     /* Let the next block know its prev neighbor is in use. */
     struct block *bq = blknextadj(bp);
     if (bq)
@@ -217,6 +225,8 @@ struct block *blkalloc(usz gross, struct block *bp) {
  */
 void blkfree(struct block *bp) {
     struct span *sp = bp->owner;
+    assert(sp->blkcount > 0);
+    sp->blkcount--;
     blkinitfree(bp, sp, blksize(bp));
     blkprepend(bp);
 
