@@ -2,3 +2,4 @@
 malloc
 tests
 *.dylib
+*.so

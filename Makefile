@@ -10,12 +10,14 @@ TESTENV = MallocNanoZone=0
 
 all: malloc.so malloc.dylib tests
 
-malloc.so: malloc.o
-	$(CC) $(CFLAGS) -shared -fvisibility=hidden -o $@ malloc.o
+malloc.so: malloc.o exports.o
+	$(CC) $(CFLAGS) -shared -fvisibility=hidden -o $@ malloc.o exports.o
 malloc.dylib: malloc.o interpose.o
 	$(CC) $(CFLAGS) -dynamiclib -fvisibility=hidden -o $@ malloc.o interpose.o
 malloc.o: malloc.c malloc.h internal.h Makefile
 	$(CC) $(CFLAGS) -c malloc.c
+exports.o: exports.c
+	$(CC) $(CFLAGS) -c exports.c
 interpose.o: interpose.c malloc.h
 	$(CC) $(CFLAGS) -c interpose.c
 
