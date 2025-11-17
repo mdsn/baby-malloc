@@ -1,5 +1,5 @@
 #include <assert.h>
-#include <unistd.h> /* getpagesize */
+#include <unistd.h> /* sysconf */
 #include <sys/mman.h> /* mmap */
 #include <string.h> /* memset, memcpy */
 
@@ -387,7 +387,7 @@ void *m_malloc(usz size) {
 
     /* Determine the page size on first call. */
     if (pagesize == 0)
-        pagesize = getpagesize();
+        pagesize = sysconf(_SC_PAGESIZE);
 
     /* Calculate how many bytes are needed to hold the requested memory along
      * with padding and metadata.

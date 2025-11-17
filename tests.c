@@ -1,5 +1,5 @@
 #include <assert.h>
-#include <unistd.h> /* getpagesize */
+#include <unistd.h> /* sysconf */
 #include <stdio.h>
 
 #include "malloc.h"
@@ -35,7 +35,7 @@ int main(void) {
     /* malloc() calls this, so when testing helper functions it needs to be set
      * manually.
      */
-    pagesize = getpagesize();
+    pagesize = sysconf(_SC_PAGESIZE);
 
     printf("pagesize = %d\n", pagesize);
     printf("span_hdr_padsz = %d\n", SPAN_HDR_PADSZ);

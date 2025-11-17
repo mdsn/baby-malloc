@@ -8,8 +8,10 @@ TESTENV = MallocNanoZone=0
 
 .PHONY: all clean test
 
-all: malloc.dylib tests
+all: malloc.so malloc.dylib tests
 
+malloc.so: malloc.o
+	$(CC) $(CFLAGS) -shared -fvisibility=hidden -o $@ malloc.o
 malloc.dylib: malloc.o interpose.o
 	$(CC) $(CFLAGS) -dynamiclib -fvisibility=hidden -o $@ malloc.o interpose.o
 malloc.o: malloc.c malloc.h internal.h Makefile
@@ -27,5 +29,5 @@ test:
 	$(TESTENV) ./tests
 
 clean:
-	rm -f malloc.dylib malloc.o interpose.o
+	rm -f malloc.so malloc.dylib malloc.o interpose.o
 	rm -f tests tests.o
