@@ -485,7 +485,8 @@ void *m_realloc(void *p, usz size) {
         return m_malloc(size);
 
     struct block *bp = plblk(p);
-    if (!size || size < blksize(bp))
+    usz gross = blksizerequest(size);
+    if (!size || gross < blksize(bp))
         return realloc_truncate(bp, size);
 
     return realloc_extend(bp, size);
