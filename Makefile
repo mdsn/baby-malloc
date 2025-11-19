@@ -33,3 +33,6 @@ test:
 clean:
 	rm -f malloc.so malloc.dylib malloc.o interpose.o
 	rm -f tests tests.o
+
+tags:
+	ctags -f ./tags -R --languages=C --map-C=+.h

@@ -3,3 +3,4 @@ malloc
 tests
 *.dylib
 *.so
+tags
