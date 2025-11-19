@@ -486,6 +486,10 @@ void *m_realloc(void *p, usz size) {
 
     struct block *bp = plblk(p);
     usz gross = blksizerequest(size);
+
+    if (gross == blksize(bp))
+        return p;
+
     if (!size || gross < blksize(bp))
         return realloc_truncate(bp, size);
 
