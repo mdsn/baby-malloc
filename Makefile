@@ -34,5 +34,5 @@ clean:
 	rm -f malloc.so malloc.dylib malloc.o interpose.o
 	rm -f tests tests.o
 
-tags:
+tags: malloc.c exports.c interpose.c tests.c malloc.h internal.h Makefile
 	ctags -f ./tags -R --languages=C --map-C=+.h

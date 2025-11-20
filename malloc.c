@@ -549,10 +549,10 @@ void *realloc_extend(struct block *bp, usz size) {
 
         if (leftover < MIN_BLKSZ) {
             blksever(bq);
+            blksetsize(bp, blksize(bp) + blksize(bq)); /* Take all the space. */
             bq = blknextadj(bq);
             if (bq)
                 blksetprevused(bq);
-            blksetsize(bp, blksize(bp) + blksize(bq)); /* Take all the space. */
             return p;
         }
 
