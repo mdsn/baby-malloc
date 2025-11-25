@@ -476,18 +476,11 @@ void *m_calloc(usz n, usz s) {
  *
  * The returned allocation is not zeroed out.
  *
- * The glibc realloc man page states that if size is 0 and p is not NULL the
- * call is equivalent to free(p). POSIX allows either this behavior, or for a
- * null pointer to be returned.
+ * FIXME The glibc realloc man page states that if size is 0 and p is not NULL
+ * the call is equivalent to free(p). POSIX allows either this behavior, or for
+ * a null pointer to be returned.
  */
 void *m_realloc(void *p, usz size) {
-    /* Scenarios:
-     * 1. There is no allocation (p == 0).
-     * 2. The payload is reduced to minimum payload size (p && size == 0).
-     * 3. The payload is reduced.
-     * 4. The payload is extended and there is adjacent space in the block.
-     * 5. The payload is extended but needs to be moved.
-     */
     if (!p)
         return m_malloc(size);
 
