@@ -6,6 +6,9 @@ CFLAGS = -std=c99 -fPIC -g -O0 -pedantic -Wall -Wextra
 # Apple's libmalloc complains if address sanitizer takes over its space. Silence it:
 TESTENV = MallocNanoZone=0
 
+# Linux only:
+BINENV = LD_PRELOAD=./malloc.so
+
 .PHONY: all clean test
 
 all: malloc.so malloc.dylib tests
@@ -26,9 +29,16 @@ tests: tests.o malloc.o
 tests.o: tests.c malloc.h internal.h Makefile
 	$(CC) $(CFLAGS) -c tests.c
 
-test:
-	make tests
+test: tests
 	$(TESTENV) ./tests
+
+# This target runs a few standard utilities backed by malloc.so to make sure
+# they don't segfault.
+run-binaries: malloc.so
+	$(BINENV) ls -l / > /dev/null
+	$(BINENV) grep -r blk . > /dev/null
+	$(BINENV) find . -maxdepth 2 -type f | wc -l > /dev/null
+	$(BINENV) sort malloc.c > /dev/null
 
 clean:
 	rm -f malloc.so malloc.dylib malloc.o interpose.o
