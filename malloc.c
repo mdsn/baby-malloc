@@ -380,11 +380,14 @@ struct block *coalesce(struct block *bp) {
  * with enough available space for the new block: its header, and the number of
  * bytes requested by the user. If one does not exist, a new span is mmap'd and
  * linked to the span list, and used to serve the request.
+ *
+ * This malloc returns a minimum-sized allocation when size is 0. This is
+ * nonportable behavior to keep the behavior in line with glibc, which only
+ * returns 0 on error. POSIX leaves this undefined; implementations can choose
+ * to return the null pointer when size is 0, and that was indeed what this
+ * malloc did until GNU grep said "memory exhausted".
  */
 void *m_malloc(usz size) {
-    if (size == 0)
-        return 0;
-
     /* Determine the page size on first call. */
     if (pagesize == 0)
         pagesize = sysconf(_SC_PAGESIZE);
@@ -472,6 +475,10 @@ void *m_calloc(usz n, usz s) {
  * allocation is truncated in place to a minimum-sized block.
  *
  * The returned allocation is not zeroed out.
+ *
+ * The glibc realloc man page states that if size is 0 and p is not NULL the
+ * call is equivalent to free(p). POSIX allows either this behavior, or for a
+ * null pointer to be returned.
  */
 void *m_realloc(void *p, usz size) {
     /* Scenarios:

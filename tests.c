@@ -12,6 +12,7 @@ extern struct span *base; /* defined in malloc.c */
 void test_minimum_span_allocation(void);
 void test_large_span_allocation(void);
 void test_alloc_multiple_spans(void);
+void test_alloc_zero(void);
 void test_free_only_span(void);
 void test_free_single_block(void);
 void test_blkpayload(void);
@@ -51,6 +52,7 @@ int main(void) {
     test_blkpayload();
     test_block_from_payload();
     test_alloc_multiple_spans();
+    test_alloc_zero();
     test_blknextadj();
     test_blkfoot();
     test_blksplit();
@@ -177,6 +179,17 @@ void test_alloc_multiple_spans(void) {
     spfree(s1);
     spfree(s2);
     spfree(s3);
+}
+
+void test_alloc_zero(void) {
+    printf("==== test_alloc_zero ====\n");
+    void *p = m_malloc(0);
+
+    assert(p);
+    struct block *bp = plblk(p);
+    assert(blksize(bp) == MIN_BLKSZ);
+
+    spfree(bp->owner);
 }
 
 void test_free_multiple_spans(void) {
