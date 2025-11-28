@@ -6,14 +6,13 @@ and `realloc()` with guaranteed alignment to 16 bytes.
 
 ## Build and test
 
-Build with `make`, run tests with `make test`.
+Build with `make`, run tests with `make test`. Run a battery of Linux binaries
+with `make run-binaries`. Tags can be collected with `make tags`.
 
-The macOS dynamic loader can be forced to run these `malloc` and friends when a
-binary requests them by inserting the dylib like so:
+The Linux dynamic loader can be made to run binaries with these `malloc` and
+friends by interposing it like so:
 
-    $ DYLD_INSERT_LIBRARIES=$PWD/malloc.dylib rg TODO
-
-See `interpose.c` and http://toves.freeshell.org/interpose/ for details.
+    $ LD_PRELOAD=./malloc.so grep -r TODO .
 
 ## Internals
 
@@ -57,3 +56,19 @@ previous free/used status. The `next`/`prev` pointers are only necessary for
 free blocks; their space could be made part of the payload on allocation. Block
 headers have a `magic` number to help with debugging, and a pointer to their
 owning span.
+
+## Incomplete
+
+There is no implementation of `malloc_usable_size()`, `posix_memalign()` or
+`aligned_alloc()`.
+
+The allocator is fairly wasteful. Pointers `prev`/`next` are kept in block
+headers even for blocks in use, where they have no use. It also has no notion
+of buckets or bitmaps; all allocations, even tiny ones, cost an expensive block
+header.
+
+No support for macOS. It requires a different interposition mechanism.
+
+No knobs or toggles whatsoever.
+
+The allocator is decidedly single-threaded.
