@@ -28,7 +28,8 @@ enum {
 struct span;
 struct block;
 
-/* Public API, prefixed with m_ for now.
+/* Internal malloc API. These are wrapped in the real malloc() names in
+ * exports.c.
  */
 void *m_malloc(size_t n);
 void *m_calloc(size_t n, size_t s);

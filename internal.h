@@ -1,6 +1,7 @@
 #ifndef INTERNAL_H
 #define INTERNAL_H
 
+#include <assert.h>
 #include <inttypes.h>
 
 #include "malloc.h"
@@ -157,6 +158,8 @@ static inline usz *blkfoot(struct block *bp) {
  * Payloads
  *
  ****/
+
+b32 plforeign(void *p);
 
 static inline struct block *plblk(void *p) {
     return (struct block *)((char *)p - BLOCK_HDR_PADSZ);

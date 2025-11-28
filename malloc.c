@@ -376,6 +376,15 @@ struct block *coalesce(struct block *bp) {
     return bp;
 }
 
+/* True if p belongs to any of the allocated spans. */
+b32 plforeign(void *p) {
+    for (struct span *s = base; s; s = s->next) {
+        if (ptr_in_span(p, s))
+            return 0;
+    }
+    return 1;
+}
+
 /* Serve a request for memory for the caller. Search for an already mmap'd span
  * with enough available space for the new block: its header, and the number of
  * bytes requested by the user. If one does not exist, a new span is mmap'd and
